@@ -6,7 +6,7 @@ from .models import AuditReport, CheckResult, Severity, Status
 from .runner import render_markdown, run_audit
 from .tiers import SkillTier, classify
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "AuditReport",

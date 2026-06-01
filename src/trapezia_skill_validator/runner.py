@@ -29,7 +29,7 @@ def run_audit(root: Path) -> AuditReport:
     ctx = AuditContext.build(root)
     results = [check.fn(ctx) for check in CHECKS if applicable(check, ctx)]
     return AuditReport(
-        skill_path=str(root),
+        skill_path=str(ctx.root),  # use ctx.root (resolved absolute path)
         level=ctx.tier.level,
         sensitive=ctx.tier.sensitive,
         results=results,

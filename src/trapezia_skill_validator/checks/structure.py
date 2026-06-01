@@ -11,7 +11,7 @@ from ..models import CheckResult, Severity, Status
 from ..registry import register
 from ..walk import is_skipped
 
-_TRIGGER_RE = re.compile(r"\buse when\b", re.IGNORECASE)
+_TRIGGER_RE = re.compile(r"\buse\b[^.]{0,40}?\bwhen(ever)?\b", re.IGNORECASE)
 _KEEP_A_CHANGELOG_RE = re.compile(r"^#\s*changelog", re.IGNORECASE | re.MULTILINE)
 _SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+([-+].+)?$")
 _ACTION_ITEM_NAMES = {"ACTION_ITEMS.md", "TODO.md", "PROJECT_PLAN.md"}

@@ -45,6 +45,34 @@ def test_description_with_trigger_passes(make_skill) -> None:
     assert _run("frontmatter.desc", root).status is Status.PASS
 
 
+def test_description_with_use_whenever_passes(make_skill) -> None:
+    """'Use whenever the user asks…' is a valid trigger — must PASS, not WARN."""
+    desc = "Use whenever the user asks to check a skill for conformance issues before publishing."
+    root = make_skill("d4", {"SKILL.md": f"---\nname: d4\ndescription: '{desc}'\n---\n"})
+    assert _run("frontmatter.desc", root).status is Status.PASS
+
+
+def test_description_with_use_this_skill_when_passes(make_skill) -> None:
+    """'Use this skill when you need…' is a valid trigger — must PASS, not WARN."""
+    desc = "Use this skill when you need to audit a Trapezia skill directory for conformance."
+    root = make_skill("d5", {"SKILL.md": f"---\nname: d5\ndescription: '{desc}'\n---\n"})
+    assert _run("frontmatter.desc", root).status is Status.PASS
+
+
+def test_description_with_use_this_when_passes(make_skill) -> None:
+    """'Use this when…' is a valid trigger — must PASS, not WARN."""
+    desc = "Use this when the codebase needs a full structural conformance scan before release."
+    root = make_skill("d6", {"SKILL.md": f"---\nname: d6\ndescription: '{desc}'\n---\n"})
+    assert _run("frontmatter.desc", root).status is Status.PASS
+
+
+def test_description_with_no_trigger_still_warns(make_skill) -> None:
+    """A description with no 'use…when' phrase at all must still WARN."""
+    desc = "This does many things across the codebase always, comprehensively, and thoroughly."
+    root = make_skill("d7", {"SKILL.md": f"---\nname: d7\ndescription: '{desc}'\n---\n"})
+    assert _run("frontmatter.desc", root).status is Status.WARN
+
+
 def test_readme_missing_fails(make_skill) -> None:
     root = make_skill("noreadme", {"scripts/x.py": "x = 1\n"})  # T1 → readme required
     assert _run("readme.present", root).status is Status.FAIL

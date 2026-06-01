@@ -33,6 +33,7 @@ class AuditContext:
     @classmethod
     def build(cls, root: Path) -> "AuditContext":
         """Construct a context for the skill at ``root``."""
+        root = Path(root).resolve()
         skill_md = root / "SKILL.md"
         fm = (
             parse_frontmatter(skill_md.read_text(encoding="utf-8"))

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from trapezia_skill_validator.models import AuditReport, Status
@@ -43,3 +44,31 @@ def test_failures_sorted_critical_first(make_skill) -> None:
     report = run_audit(root)
     md = render_markdown(report)
     assert "data.separation" in md
+
+
+def test_run_audit_relative_path_frontmatter_name_passes(make_skill, tmp_path) -> None:
+    """Auditing via a relative path must not cause frontmatter.name to FAIL.
+
+    When the audited path is relative (e.g. Path('my-skill')), Path.name
+    still gives the right directory name. But if root.name is empty (e.g.
+    Path('.').name == ''), frontmatter.name would incorrectly FAIL.
+    This test cd-s into the skill's parent and calls run_audit with a
+    relative path to catch that regression.
+    """
+    root = make_skill("relative-skill")  # builds at tmp_path/relative-skill
+    original_cwd = Path.cwd()
+    try:
+        os.chdir(root.parent)  # cd into tmp_path
+        relative = Path(root.name)  # Path('relative-skill')
+        report = run_audit(relative)
+    finally:
+        os.chdir(original_cwd)
+
+    name_result = next(r for r in report.results if r.id == "frontmatter.name")
+    assert name_result.status is Status.PASS, (
+        f"frontmatter.name should PASS for a relative-path audit, got: {name_result.message!r}"
+    )
+    # skill_path in the report should be an absolute path
+    assert Path(report.skill_path).is_absolute(), (
+        f"report.skill_path should be absolute, got: {report.skill_path!r}"
+    )
