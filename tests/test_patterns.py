@@ -19,3 +19,9 @@ def test_compiled_regexes_match_ssn() -> None:
 def test_compiled_regexes_no_false_positive_on_plain_text() -> None:
     patterns = load_shape_patterns()
     assert patterns.matches_content("the quick brown fox") is False
+
+
+def test_block_content_excludes_broad_date() -> None:
+    p = load_shape_patterns()
+    assert p.matches_block_content("ssn 123-45-6789") is True
+    assert p.matches_block_content("released 2026-06-01") is False  # date NOT block-grade

@@ -16,14 +16,26 @@ class ShapePatterns:
     Args:
         path_globs: globs for files that must never be committed.
         content_regexes: raw regex strings indicating PII/PHI content.
+        block_content_regexes: block-grade subset — specific enough to hard-block a commit
+            (excludes broad patterns like the advisory ISO-date regex).
     """
 
     path_globs: tuple[str, ...]
     content_regexes: tuple[str, ...]
+    block_content_regexes: tuple[str, ...]
 
     def matches_content(self, text: str) -> bool:
         """Return True if any content regex matches ``text``."""
         return any(re.search(rx, text) for rx in self.content_regexes)
+
+    def matches_block_content(self, text: str) -> bool:
+        """Return True if any block-grade content regex matches ``text``.
+
+        Only uses the block_content_regexes subset — specific enough to
+        hard-block a commit without false-positives from broad advisory
+        patterns (e.g. the ISO-date regex is excluded).
+        """
+        return any(re.search(rx, text) for rx in self.block_content_regexes)
 
 
 @lru_cache(maxsize=1)
@@ -42,4 +54,5 @@ def load_shape_patterns() -> ShapePatterns:
     return ShapePatterns(
         path_globs=tuple(data.get("path_globs", [])),
         content_regexes=tuple(data.get("content_regexes", [])),
+        block_content_regexes=tuple(data.get("block_content_regexes", [])),
     )

@@ -4,6 +4,11 @@ All notable changes documented here. Format per [Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-01
+
+### Added
+- Added `block_content_regexes` + `matches_block_content()` — block-grade subset (SSN, MRN) for hard guards, excluding the broad advisory ISO-date pattern.
+
 ## [0.1.1] - 2026-06-01
 
 ### Fixed

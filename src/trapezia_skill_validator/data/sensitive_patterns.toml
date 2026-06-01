@@ -16,3 +16,9 @@ content_regexes = [
     '\bMRN[:#]?\s*\d{6,}\b',
     '\b\d{4}-\d{2}-\d{2}T?\b',
 ]
+
+# Block-grade content regexes — specific enough to HARD-BLOCK a commit (no broad date match).
+block_content_regexes = [
+    '\b\d{3}-\d{2}-\d{4}\b',
+    '\bMRN[:#]?\s*\d{6,}\b',
+]
