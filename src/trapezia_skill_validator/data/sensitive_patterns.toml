@@ -1,0 +1,18 @@
+# Non-secret sensitive-data SHAPE patterns. NEVER put real PHI/PII values here;
+# the secret wordlist lives outside any repo at $TRAPEZIA_PHI_WORDLIST.
+
+# File path globs that must never be committed to a code repo.
+path_globs = [
+    "*.phi.*",
+    "data/**",
+    "*.age",
+    "**/phi-wordlist.txt",
+    "**/*secrets*.json",
+]
+
+# Generic format regexes that indicate PII/PHI content.
+content_regexes = [
+    '\b\d{3}-\d{2}-\d{4}\b',
+    '\bMRN[:#]?\s*\d{6,}\b',
+    '\b\d{4}-\d{2}-\d{2}T?\b',
+]
