@@ -3,11 +3,33 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import sys
 from pathlib import Path
 
 from .runner import render_markdown, run_audit
+
+
+def _safe_print(text: str) -> None:
+    """Print text to stdout, falling back to UTF-8 binary write on narrow consoles.
+
+    On Windows the default console encoding is often cp1252, which cannot
+    represent the emoji characters used in the markdown report.  When stdout
+    has an underlying binary buffer and its current encoding cannot handle the
+    text, write directly to the buffer as UTF-8.
+    """
+    try:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+    except (UnicodeEncodeError, UnicodeTranslateError):
+        buf = getattr(sys.stdout, "buffer", None)
+        if buf is not None:
+            buf.write(text.encode("utf-8", errors="replace"))
+            buf.flush()
+        else:
+            sys.stdout.write(text.encode("utf-8", errors="replace").decode("ascii", errors="replace"))
+            sys.stdout.flush()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -29,9 +51,9 @@ def main(argv: list[str] | None = None) -> int:
 
     report = run_audit(args.skill_path)
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2))
+        _safe_print(json.dumps(report.to_dict(), indent=2) + "\n")
     else:
-        print(render_markdown(report), end="")
+        _safe_print(render_markdown(report))
     return 0 if report.passed else 1
 
 
