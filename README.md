@@ -1,7 +1,7 @@
 # trapezia-skill-validator
 
 Deterministic conformance checks for Trapezia skills. Shared by `skill-template`
-(self-test) and the `trapezia-disciplines` auditor skill.
+(self-test) and the `trapezia-skill-audit` auditor skill.
 
 ## Quick start
 
