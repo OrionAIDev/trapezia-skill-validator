@@ -9,6 +9,7 @@ from pathlib import Path
 from ..context import AuditContext
 from ..models import CheckResult, Severity, Status
 from ..registry import register
+from ..walk import is_skipped
 
 _TRIGGER_RE = re.compile(r"\buse when\b", re.IGNORECASE)
 _KEEP_A_CHANGELOG_RE = re.compile(r"^#\s*changelog", re.IGNORECASE | re.MULTILINE)
@@ -195,7 +196,11 @@ def hooks_crossplatform(ctx: AuditContext) -> CheckResult:
 @register("no_action_items", min_level=0)
 def no_action_items(ctx: AuditContext) -> CheckResult:
     """No action-item markdown files committed (Rule 3 — use GitHub issues)."""
-    found = [p.name for p in ctx.root.rglob("*.md") if p.name in _ACTION_ITEM_NAMES]
+    found = [
+        p.name
+        for p in ctx.root.rglob("*.md")
+        if p.name in _ACTION_ITEM_NAMES and not is_skipped(p.relative_to(ctx.root))
+    ]
     if found:
         return _result(
             "no_action_items",
@@ -215,7 +220,7 @@ def docstrings_present(ctx: AuditContext) -> CheckResult:
     offenders: list[str] = []
     for py in ctx.root.rglob("*.py"):
         rel = py.relative_to(ctx.root)
-        if rel.parts and rel.parts[0] == "tests":
+        if (rel.parts and rel.parts[0] == "tests") or is_skipped(rel):
             continue
         try:
             tree = ast.parse(py.read_text(encoding="utf-8"))

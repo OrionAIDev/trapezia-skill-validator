@@ -4,6 +4,9 @@ All notable changes documented here. Format per [Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### Fixed
+- File-walking checks (`docstrings.present`, `no_action_items`) no longer recurse into `.venv`, `site-packages`, and other vendored/cache dirs; skip-dir set centralized in `walk.py`.
+
 ## [0.1.0] - 2026-05-31
 
 ### Added

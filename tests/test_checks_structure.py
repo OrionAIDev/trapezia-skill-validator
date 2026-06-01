@@ -53,3 +53,27 @@ def test_readme_missing_fails(make_skill) -> None:
 def test_no_action_items_fails_when_present(make_skill) -> None:
     root = make_skill("ai", {"ACTION_ITEMS.md": "- do thing\n"})
     assert _run("no_action_items", root).status is Status.FAIL
+
+
+def test_docstrings_ignores_venv_and_vendored(make_skill) -> None:
+    """docstrings.present must not walk into .venv/site-packages."""
+    root = make_skill(
+        "venvskill",
+        {
+            "scripts/main.py": '"""Has a docstring."""\nx = 1\n',
+            ".venv/Lib/site-packages/vendored.py": "x = 1\n",  # no docstring, must be ignored
+        },
+    )
+    assert _run("docstrings.present", root).status is Status.PASS
+
+
+def test_no_action_items_ignores_venv_and_vendored(make_skill) -> None:
+    """no_action_items must not flag TODO.md shipped inside .venv."""
+    root = make_skill(
+        "venvskill2",
+        {
+            "scripts/main.py": '"""Has a docstring."""\nx = 1\n',
+            ".venv/Lib/site-packages/somepkg/TODO.md": "- vendored todo\n",  # must be ignored
+        },
+    )
+    assert _run("no_action_items", root).status is Status.PASS

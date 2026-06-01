@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import fnmatch
 import re
-from pathlib import Path
 
 from ..context import AuditContext
 from ..models import CheckResult, Severity, Status
 from ..registry import register
+from ..walk import iter_files
 
 # Conservative secret signatures; deterministic, low false-positive.
 _SECRET_RES = (
@@ -18,25 +18,12 @@ _SECRET_RES = (
     re.compile(r"(?i)\b(?:api[_-]?key|secret|token)\b\s*[:=]\s*['\"][A-Za-z0-9/+_-]{16,}['\"]"),
 )
 
-_SKIP_DIRS = {".git", "__pycache__", ".venv", "node_modules"}
-
-
-def _iter_files(root: Path):
-    """Yield non-skipped files under ``root``."""
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(root)
-        if any(part in _SKIP_DIRS for part in rel.parts):
-            continue
-        yield path, rel
-
 
 @register("data.separation", min_level=0, sensitive_only=True)
 def data_separation(ctx: AuditContext) -> CheckResult:
     """No sensitive-shaped files committed; if wordlist present, no matching content."""
     offenders: list[str] = []
-    for path, rel in _iter_files(ctx.root):
+    for path, rel in iter_files(ctx.root):
         rel_str = rel.as_posix()
         if any(fnmatch.fnmatch(rel_str, glob) for glob in ctx.patterns.path_globs):
             offenders.append(rel_str)
@@ -48,7 +35,7 @@ def data_separation(ctx: AuditContext) -> CheckResult:
             for w in ctx.phi_wordlist_path.read_text(encoding="utf-8").splitlines()
             if w.strip() and not w.startswith("#")
         ]
-        for path, rel in _iter_files(ctx.root):
+        for path, rel in iter_files(ctx.root):
             try:
                 text = path.read_text(encoding="utf-8", errors="ignore")
             except OSError:
@@ -71,7 +58,7 @@ def data_separation(ctx: AuditContext) -> CheckResult:
 def secrets_scan(ctx: AuditContext) -> CheckResult:
     """No obvious committed secrets (API keys, private keys)."""
     offenders: list[str] = []
-    for path, rel in _iter_files(ctx.root):
+    for path, rel in iter_files(ctx.root):
         if path.suffix in {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip"}:
             continue
         try:
