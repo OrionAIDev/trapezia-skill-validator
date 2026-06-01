@@ -27,7 +27,13 @@ def make_skill(tmp_path: Path):
         root.mkdir(parents=True, exist_ok=True)
         files = dict(files or {})
         if "SKILL.md" not in files:
-            files["SKILL.md"] = f"---\nname: {name}\ndescription: x\n---\n"
+            files["SKILL.md"] = (
+                f"---\n"
+                f"name: {name}\n"
+                f"description: 'Use when you need a placeholder skill for testing. "
+                f"Validates that the audit runner works end-to-end on a minimal skill.'\n"
+                f"---\n"
+            )
         for rel, content in files.items():
             write(root / rel, content)
         return root
