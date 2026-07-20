@@ -85,6 +85,79 @@ predicted Hermes equivalent. The launch command is
 `trapezia-commercial-policy-check` (server surface `v1`, engine v0.2.0) exposing
 `health`, `run_policy_check`, `get_run_status`, `get_run_report`.
 
+### F-5. Hermes is far more mature than the spec assumed (image probed 2026-07-20)
+
+The image (`nousresearch/hermes-agent:latest`, 3.81 GB, **built 27 minutes before pull**) is not a
+sleepy v0.2.x:
+
+- **Config schema version 33.** First start auto-migrates `0 → 33` and rewrites `config.yaml`,
+  keeping a timestamped backup. The written config stores **only non-defaults** (6.7 KB vs the
+  78.9 KB pre-migration backup) — which is why documented keys appear "missing" (see F-7).
+- **73 bundled skills** are synced into `~/.hermes/skills/` on first run (`claude-code`, `codex`,
+  `computer-use`, `arxiv`, …). ⚠️ Directly relevant to the Discord **100-slash-command cap**:
+  we start ~73 commands deep before adding any Trapezia skill.
+- Default model is `anthropic/claude-opus-4.6` with `provider: auto` and
+  `base_url: https://openrouter.ai/api/v1` — i.e. Claude **via OpenRouter** by default.
+- Rich subcommand surface: `chat, model, moa, fallback, secrets, gateway, proxy, lsp, setup,
+  slack, send, auth, cron, webhook, portal, kanban, hooks, doctor, security, backup, checkpoints,
+  config, console, skills, bundles, plugins, curator, memory-graph, memory, tools, computer-use,
+  mcp, sessions, acp, dashboard, serve, …`
+- `platform` entries for **`teams`** and **`google_chat`** already exist (they warn about unknown
+  toolsets until enabled) — encouraging for the Phase 3 Teams decision gate.
+- The container runs as **uid 10000**, and `/opt/data` is created `drwx------ 10000:10000`.
+  Phase 2's ro-mount/immutability design must account for this non-root uid.
+
+### F-6. ✅ MCP registration schema RESOLVED — `config.yaml` → `mcp_servers.<name>`
+
+This closes the plan's bounded discovery step for Task 4. Evidence is Hermes' own **built-in
+OpenClaw→Hermes migration** (`/opt/hermes/optional-skills/migration/openclaw-migration/scripts/openclaw_to_hermes.py`),
+which maps OpenClaw `mcp.servers.<name>` → Hermes `config.yaml` `mcp_servers.<name>`, carrying
+**stdio** fields `command`, `args`, `env`, `cwd` (HTTP/SSE transport is also handled).
+
+So the HermesLab registration is:
+
+```yaml
+mcp_servers:
+  trapezia-commercial-policy-check:
+    command: python
+    args: ["-m", "trapezia_commercial_policy_check.mcp_server"]
+    env:
+      TRAPEZIA_PCC_STATE_DIR: /opt/data/trapezia-commercial-policy-check
+      # Pass B (real provider) adds:
+      # TRAPEZIA_PCC_LLM_PRIMARY_MODEL: google/gemini-2.5-pro
+```
+
+Two notable corollaries:
+- **`hermes mcp` (the CLI subcommand) is broken in this image** — it exits with
+  `Error: typer is required. Install with 'pip install mcp[cli]'`. Registration must be done by
+  editing config (or via `hermes config set`), not the `mcp` subcommand.
+- There is also a **`mcp.json`** surface (GUI editor; supports `enabled: false`) listed among
+  **"distribution-owned paths (SOUL.md, mcp.json, skills/, cron/)"** — a built-in ownership concept
+  worth exploiting in Phase 2.
+
+### F-7. 🎯 Hermes has native skill drift-detection and repair (upgrade to the Phase 2 thesis)
+
+`hermes skills` exposes far more than the docs suggested:
+`browse, search, install, inspect, list, check, update, **audit**, uninstall, **reset**,
+**list-modified**, **diff**, opt-out, opt-in, **repair-official**, publish, snapshot, tap, config`.
+
+- `skills list-modified` — lists bundled skills the user/agent has edited
+- `skills diff` — shows how a local copy differs from stock
+- `skills repair-official` — restores official skills from repo source
+- `skills audit` — re-scans installed skills; `hermes security` runs an **OSV.dev supply-chain
+  audit over venv, plugins, and MCP servers**
+
+**Implication:** the spec's corruption-resistance plan assumed filesystem ro-mount was the *only*
+lever. Hermes natively tracks official-vs-modified and can restore. Phase 2 should therefore layer
+**ro-mount (prevention) + `list-modified`/`repair-official` (detection & recovery)**, which is a
+stronger and more idiomatic story than ro-mount alone.
+
+Caveat: the documented `skills.write_approval` / `skills.guard_agent_created` keys are **not
+present** in the generated `config.yaml` (its `skills` block contains only
+`creation_nudge_interval: 15`). Because the file stores only non-defaults, this does *not* prove
+they are gone — KQ-1 must verify by explicitly setting them via `hermes config set` and observing
+behavior.
+
 ### Decisions taken (Chris, 2026-07-20)
 
 | # | Decision |
