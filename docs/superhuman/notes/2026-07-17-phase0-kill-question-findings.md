@@ -15,12 +15,18 @@ This document is Phase 0's real deliverable. Each kill-question is answered with
 | Item | Value | Verified |
 |---|---|---|
 | Host | orion-dev (Hetzner CPX32, Ubuntu 24.04), up 16w | 2026-07-20 |
-| Container | `hermeslab` (upstream `nousresearch/hermes-agent`) | pending |
-| Gateway port | **8642** (Hermes default) — confirmed FREE on orion-dev | 2026-07-20 |
-| Dashboard port | **9119** — confirmed FREE on orion-dev | 2026-07-20 |
-| State dir | `/opt/hermeslab/data` → container `/opt/data` | pending |
-| Secrets | `/opt/orion/.env.hermeslab` (chmod 600, root) | pending |
+| Container | `hermeslab` (upstream `nousresearch/hermes-agent`, 3.81 GB) — **running** | 2026-07-20 |
+| Gateway port | **8642** — FREE, allocated, mapped. *Not serving yet:* `No messaging platforms enabled` until Discord is configured | 2026-07-20 |
+| Dashboard port | **9119** — allocated but **disabled in practice**: Hermes refuses to bind a non-loopback dashboard with no auth provider (good default). Access via SSH/Tailscale tunnel, or configure `dashboard.basic_auth`. | 2026-07-20 |
+| State dir | `/opt/hermeslab/data` → container `/opt/data` (must be **uid 10000**, see F-8) | 2026-07-20 |
+| Secrets | `/opt/orion/.env.hermeslab` (chmod 600 root) — `GOOGLE_API_KEY`, `GEMINI_API_KEY` set; `DISCORD_TOKEN` **placeholder pending Chris** | 2026-07-20 |
+| Capability venv | `/opt/hermeslab/data/venvs/policy-check` (isolated from Hermes' own venv; persists in the mounted volume across container recreation) | 2026-07-20 |
+| Model | `gemini/gemini-2.5-flash`, provider `gemini`, `model.base_url` unset | 2026-07-20 |
 | Tracker | **Untracked by design** — no `deployment-tracker` registration during the POC | n/a |
+
+⚠️ **Operational caution:** every stack in `/opt/orion` shares one docker-compose project name, so
+`docker compose -f docker-compose-hermeslab.yml` reports the other envs as *orphans*. **Never pass
+`--remove-orphans`** there — it would tear down orionlab/oriontest/ariauat/advenauat/salus.
 
 Note: the host-systemd MCP series occupies the 84xx range (next free 8460). Hermes' 8642/9119
 sit outside that range, so no renumbering was needed.
@@ -158,6 +164,45 @@ present** in the generated `config.yaml` (its `skills` block contains only
 they are gone — KQ-1 must verify by explicitly setting them via `hermes config set` and observing
 behavior.
 
+### F-8. ⚠️ Capability artifacts must be owned by **uid 10000**, not root
+
+Hermes services run as **uid 10000**; `docker exec` lands you as **root**. Anything created via
+`docker exec` (venvs, state dirs) is root-owned and the service then cannot use it. Symptom: the
+MCP server crashed at *import* time with
+
+```
+PermissionError: [Errno 13] Permission denied: '/opt/data/trapezia-commercial-policy-check/originals'
+```
+
+which surfaced only as an opaque Hermes warning:
+`initial connection failed … unhandled errors in a TaskGroup (1 sub-exception)` →
+`failed initial connection after 3 attempts, parking until a reconnect is requested`.
+The real cause was in `/opt/data/logs/mcp-stderr.log`, not the agent log.
+
+**Fix:** `chown -R 10000:10000` the capability venv and state dir. **Phase 2 must bake this into
+the overlay image / deploy step**, and the ro-mount design must account for the non-root uid.
+
+*Debugging note for the runbook:* when an MCP server "fails to connect" in Hermes, read
+`/opt/data/logs/mcp-stderr.log` first — the agent-level error is uninformative.
+
+### F-9. 🔎 OPEN: MCP tools are registered and connected but not exposed to the one-shot CLI agent
+
+Current state after the F-8 fix:
+
+- `hermes mcp list` → `trapezia-commercial-policy-check | <venv python> | all | ✓ enabled`
+- `hermes tools list` → `MCP servers: trapezia-commercial-policy-check  all tools enabled`
+- No connection failures after the ownership fix.
+
+**But** a one-shot CLI agent run (`hermes -z "…call the health tool…"`) does **not** receive the
+MCP tools — the agent tries `terminal`/`execute_code` instead and reports the executable is
+inaccessible. So registration ≠ exposure in this mode.
+
+Hypotheses to test next (in order): (a) MCP tools surface only in gateway/Discord or interactive
+`hermes chat` sessions, not the one-shot `-z` path; (b) the one-shot exits before async MCP tool
+discovery completes; (c) a toolset/plugin gate is required (plugins are opt-in in schema v33).
+
+**This is directly load-bearing for KQ-5** — see the partial answer below.
+
 ### Decisions taken (Chris, 2026-07-20)
 
 | # | Decision |
@@ -201,9 +246,19 @@ plus, separately, whether an `anthropic` provider slot exists for future use.
 / `base_url`; auxiliary tasks support an explicit `fallback_chain`. Model selection is
 **instance-global** — see KQ-related note in OQ-3 below.
 
-**Live verification:** _pending_
+**Live verification (2026-07-20): ✅ provider path works.** Configured
+`model.default = gemini/gemini-2.5-flash`, `model.provider = gemini`, and unset the default
+`model.base_url` (which otherwise routes Claude via OpenRouter). Set both `GOOGLE_API_KEY` and
+`GEMINI_API_KEY` (Hermes' source references both). A CLI agent run then produced a real,
+coherent LLM response — proving the model path is live end-to-end.
 
-**Answer:** _pending_
+`hermes fallback list | add | remove` exists as a first-class fallback-chain surface (not yet
+exercised).
+
+**Answer (partial):** Hermes supports a working provider + fallback-chain mechanism; verified
+concretely with Google/Gemini. An `anthropic` provider slot exists for future use, though
+Trapezia's own capability layer has deprecated the direct-Anthropic path (F-2). **Outstanding:**
+exercise `hermes fallback add` and force a primary failure to observe failover.
 
 ---
 
@@ -241,11 +296,23 @@ Hermes' `/opt/data/memories/` is the persistent memory store.
 
 Caveat to carry: Hermes registers skills as Discord **slash commands**, so slash-command dispatch
 (autocomplete, the 100-command cap) is not covered by a CLI-channel test — plan a one-time manual
-Discord verification per promotion regardless of the answer.
+Discord verification per promotion regardless of the answer. ⚠️ Sharpened by F-5: **73 bundled
+skills ship by default**, so the 100-command cap is a live constraint, not theoretical.
 
-**Live verification:** _pending_
+**Live verification (2026-07-20): a CLI injection surface exists and drives a real agent loop.**
+`hermes -z "<prompt>"` runs a one-shot agent turn (note: the flag is `-z`, **not** `-p`) and
+returned a genuine Gemini-backed response. Additional candidate surfaces not yet tested:
+`hermes chat` (interactive), `hermes send`, `hermes serve`, `hermes acp`, and the gateway's
+OpenAI-compatible API on 8642.
 
-**Answer:** _pending_
+**Answer (partial, and the most important open risk):** the CLI surface drives the agent loop but
+— per **F-9** — it did **not** expose the registered MCP tools, while `hermes mcp list` reports the
+server enabled and connected. So the one-shot CLI is **not yet demonstrated to be equivalent** to
+the Discord/gateway dispatch path.
+
+**Consequence:** we cannot yet conclude that e2e can avoid a Discord/gateway channel. Resolving
+F-9 is the gating item for the Phase 2 e2e design — if MCP tools only surface via the gateway,
+the portable-e2e story needs the gateway API (8642) rather than the one-shot CLI.
 
 ---
 
