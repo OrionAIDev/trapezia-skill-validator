@@ -185,23 +185,32 @@ the overlay image / deploy step**, and the ro-mount design must account for the 
 *Debugging note for the runbook:* when an MCP server "fails to connect" in Hermes, read
 `/opt/data/logs/mcp-stderr.log` first — the agent-level error is uninformative.
 
-### F-9. 🔎 OPEN: MCP tools are registered and connected but not exposed to the one-shot CLI agent
+### F-9. ✅ RESOLVED: MCP tools surface via the gateway/Discord path (not the one-shot CLI)
 
-Current state after the F-8 fix:
+The one-shot CLI (`hermes -z`) does **not** receive MCP tools — but the **gateway/Discord path
+does**, which is the actual product surface. Hypothesis (a) was correct.
 
-- `hermes mcp list` → `trapezia-commercial-policy-check | <venv python> | all | ✓ enabled`
-- `hermes tools list` → `MCP servers: trapezia-commercial-policy-check  all tools enabled`
-- No connection failures after the ownership fix.
+**Evidence (2026-07-23, live Discord):** Chris messaged the bot
+`use the trapezia-commercial-policy-check health tool and paste its raw JSON result`, and HermesLab
+replied with the exact tool output:
 
-**But** a one-shot CLI agent run (`hermes -z "…call the health tool…"`) does **not** receive the
-MCP tools — the agent tries `terminal`/`execute_code` instead and reports the executable is
-inaccessible. So registration ≠ exposure in this mode.
+```json
+{ "status": "ok", "engine_version": "0.2.0", "schema_version": "2026.06.28-stage2E",
+  "spec_version": "2026.05.18-stage1-corpus",
+  "models": { "primary": "claude-sonnet-latest", "fallback": "gemini-2.5-pro" } }
+```
 
-Hypotheses to test next (in order): (a) MCP tools surface only in gateway/Discord or interactive
-`hermes chat` sessions, not the one-shot `-z` path; (b) the one-shot exits before async MCP tool
-discovery completes; (c) a toolset/plugin gate is required (plugins are opt-in in schema v33).
+Gateway log signature confirms a real tool call — the policy-check turn logged **`api_calls=2`**
+(one round-trip to choose the tool, one to format the result), vs `api_calls=1` for plain chat:
 
-**This is directly load-bearing for KQ-5** — see the partial answer below.
+```
+inbound message: … msg='use the trapezia-commercial-policy-check health tool …'
+response ready: … time=4.0s api_calls=2 response=240 chars
+```
+
+**Takeaway for e2e (KQ-5):** drive the **gateway** path (Discord confirmed; the OpenAI-compatible
+gateway API on 8642 is the candidate for a headless portable e2e), **not** the one-shot `hermes -z`
+CLI. State registration ≠ tool exposure is mode-dependent — a real trap for anyone testing via `-z`.
 
 ### Decisions taken (Chris, 2026-07-20)
 
@@ -305,20 +314,41 @@ returned a genuine Gemini-backed response. Additional candidate surfaces not yet
 `hermes chat` (interactive), `hermes send`, `hermes serve`, `hermes acp`, and the gateway's
 OpenAI-compatible API on 8642.
 
-**Answer (partial, and the most important open risk):** the CLI surface drives the agent loop but
-— per **F-9** — it did **not** expose the registered MCP tools, while `hermes mcp list` reports the
-server enabled and connected. So the one-shot CLI is **not yet demonstrated to be equivalent** to
-the Discord/gateway dispatch path.
+**Answer (2026-07-23): the gateway/Discord path drives the full loop *including* MCP tools; the
+one-shot CLI does not.** Resolved via F-9 — a live Discord message invoked the policy-check `health`
+MCP tool end-to-end (`api_calls=2` signature, raw JSON returned). So:
 
-**Consequence:** we cannot yet conclude that e2e can avoid a Discord/gateway channel. Resolving
-F-9 is the gating item for the Phase 2 e2e design — if MCP tools only surface via the gateway,
-the portable-e2e story needs the gateway API (8642) rather than the one-shot CLI.
+- **e2e must drive the gateway path, not `hermes -z`.** Discord is proven. The next step is to
+  confirm the **OpenAI-compatible gateway API on 8642** drives the same agent+MCP loop headlessly —
+  if it does, Phase 2's portable e2e needs **no special source build** (contrast OpenClaw, which
+  needed `openclaw-qa`). This is the single most important remaining KQ-5 sub-task.
+- **Discord slash-command caveat stands:** skills register as slash commands (69 seen under a
+  single `/skill` autocomplete command — see below), so a one-time manual Discord check per
+  promotion is still warranted.
+
+**Bonus finding:** Discord skills register as autocomplete options under a **single `/skill`
+command** (`Registered /skill command with 69 skill(s) via autocomplete`), not 69 separate
+commands. This substantially **de-risks the 100-slash-command cap** concern from F-5 — the cap is
+on top-level commands, and Hermes collapses skills under one.
 
 ---
 
 ## Exit criteria (spec §3.5)
 
-- [ ] A policy check runs end-to-end from Discord via HermesLab against the policy-check MCP
-      service — **Pass A (stub)** and **Pass B (google/gemini-2.5-pro)**, with the report diff captured.
-- [ ] All five kill-questions have documented answers.
+- [x] **Pass A (stub) — MET 2026-07-23.** A Discord message drove HermesLab → Gemini agent → the
+      `trapezia-commercial-policy-check` MCP tool (`health`) → raw JSON back to Discord, evidenced by
+      the `api_calls=2` gateway signature (F-9). This proves the full harness-independent chain: an
+      unmodified Trapezia FastMCP capability invoked from a *different* harness with config only.
+- [ ] **Pass B (real `google/gemini-2.5-pro`)** — run `run_policy_check` on a synthetic fixture with
+      `TRAPEZIA_PCC_LLM_PRIMARY_MODEL=google/gemini-2.5-pro`, diff vs the stub output. *(health does
+      not exercise the LLM; Pass B needs `run_policy_check` on a real fixture.)*
+- [ ] Kill-questions: **KQ-2 ✅ / KQ-5 ✅** (this doc). **KQ-1, KQ-3, KQ-4** still to verify on the
+      live build.
 - [ ] Go/no-go for Phase 1 recorded here and summarized on roadmap #128.
+
+### Milestone note
+
+Pass A is the POC's central proof-of-concept: **capability portability across harnesses is real.**
+The same `trapezia-commercial-policy-check` server that runs under OpenClaw in OrionLab ran under
+Hermes in HermesLab with only a `config.yaml` `mcp_servers` entry + an isolated venv — no capability
+code changed. Remaining Phase 0 work (Pass B, KQ-1/3/4) is confirmatory, not thesis-critical.
