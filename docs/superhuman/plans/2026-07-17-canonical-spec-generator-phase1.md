@@ -22,6 +22,22 @@
 
 ---
 
+## Phase 0 carry-forward (2026-07-23) — READ BEFORE CODING THE SCHEMA
+
+Phase 0 is complete (findings: [`../notes/2026-07-17-phase0-kill-question-findings.md`](../notes/2026-07-17-phase0-kill-question-findings.md)). Four decisions reshape this plan — the TDD tasks below still apply, but honor these:
+
+1. **Schema must cover ALL skill types via an `invokes` *list* + a `bundle` manifest.** OpenClaw skills come in four shapes; the canonical spec is the union:
+   - **A** SKILL.md-only → `invokes: []`
+   - **B** SKILL.md + scripts → `invokes: [{kind: cli, exec: scripts/…}]`
+   - **C** SKILL.md + MCP → `invokes: [{kind: mcp, …}]` (policy-check; proven end-to-end in Phase 0)
+   - **D** SKILL.md + scripts + MCP → `invokes: [{kind: mcp,…}, {kind: cli,…}]` (the general case; A/B/C are subsets)
+   So `Invocation.kind ∈ {mcp, cli}`, `invokes` is a list (already is), **plus a new `bundle: [paths]`** for files that travel with the skill (`scripts/`, `references/`), **plus per-harness path templating** for `cli` exec: OpenClaw `/home/node/.openclaw/workspace/skills/<name>/…`, Hermes `~/.hermes/skills/<category>/<name>/…`, CC `~/.claude/skills/<name>/…`. The generator injects the harness-correct skill root; scripts copy verbatim.
+2. **Hermes MCP registration target = `config.yaml` `mcp_servers.<name>`** with stdio `command`/`args`/`env`/`cwd` (Phase 0 **F-6**, proven). The Hermes emitter must emit both the SKILL.md wrapper **and** this registration snippet. Do **not** emit `model_tier` for Hermes (OQ-3).
+3. **Add a second demo skill of type B** (a scripts-only skill) alongside policy-check (type C). This proves **script-path portability**, not just MCP registration — otherwise the generator is only exercised on one shape. (Tasks 3/5–9 gain a parallel type-B fixture.)
+4. **e2e (informs the linter's `invokes` validation, and Phase 2):** the working programmatic agent surface is `hermes webhook`/`serve`, **not** the one-shot `hermes -z` CLI (F-9). Not a Phase-1 coding item, but keep the guardrail prose honest about it.
+
+---
+
 ## File & artifact map
 
 **New generator package (future-extractable as `trapezia-skill-spec`):**
@@ -34,10 +50,9 @@
 - Create: `src/trapezia_skill_spec/cli.py` — `trapezia-skill-gen` entry point.
 
 **Canonical spec + generated outputs:**
-- Create: `specs/trapezia-commercial-policy-check.yaml`
-- Create (generated): `generated/hermes/trapezia-commercial-policy-check/SKILL.md`
-- Create (generated): `generated/openclaw/trapezia-commercial-policy-check/SKILL.md`
-- Create (generated): `generated/claude_code/trapezia-commercial-policy-check/SKILL.md`
+- Create: `specs/trapezia-commercial-policy-check.yaml` (type C — MCP)
+- Create: `specs/<type-b-scripts-skill>.yaml` (type B — SKILL.md + scripts; proves path templating + `bundle`)
+- Create (generated, per skill): `generated/{hermes,openclaw,claude_code}/<name>/SKILL.md` (+ copied `bundle` files for the type-B skill, with harness-correct exec paths)
 
 **Validator addition (additive):**
 - Create: `src/trapezia_skill_validator/spec_lint.py` — `lint_spec()`, `render_spec_report()`, `main()` for the new entry point.
