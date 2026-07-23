@@ -1,6 +1,6 @@
 # HermesLab Phase 0 — Findings & Kill-Question Answers
 
-- **Status:** In progress (started 2026-07-20)
+- **Status:** ✅ COMPLETE (2026-07-23) — both exit criteria met, all 5 kill-questions answered, **Phase 1 GO**
 - **Plan:** [`2026-07-17-hermeslab-phase0-plumbing.md`](../plans/2026-07-17-hermeslab-phase0-plumbing.md)
 - **Spec:** [`2026-07-17-multi-harness-poc-design.md`](../specs/2026-07-17-multi-harness-poc-design.md) §3.3
 - **Roadmap:** [OrionAIDev/trapezia-roadmap#128](https://github.com/OrionAIDev/trapezia-roadmap/issues/128)
@@ -212,6 +212,20 @@ response ready: … time=4.0s api_calls=2 response=240 chars
 gateway API on 8642 is the candidate for a headless portable e2e), **not** the one-shot `hermes -z`
 CLI. State registration ≠ tool exposure is mode-dependent — a real trap for anyone testing via `-z`.
 
+### F-10. ⚠️ The `GOOGLE_API_KEY` in the `/opt/orion/.env.*` files is **double-quoted**
+
+`/opt/orion/.env.orionlab` (and the copy into `.env.hermeslab`) stores the key as
+`GOOGLE_API_KEY="AIza…"` — 41 chars including the surrounding `"`. Docker's `env_file` parser
+strips the quotes (HermesLab's own Gemini agent worked), **but** copying the value into another
+context that does *not* strip quotes breaks it. Concretely: injecting the quoted value into the
+Hermes `config.yaml` `mcp_servers.<name>.env` map passed literal quote characters to `google-genai`
+→ `400 API_KEY_INVALID`. Stripping the quotes, the same key returns HTTP 200 from
+`generativelanguage.googleapis.com`.
+
+**Rule for the runbook:** when copying a key out of `/opt/orion/.env.*` into any non-`env_file`
+consumer (a YAML `env:` map, a `-e VAR=` flag, a JSON config), **strip surrounding quotes**
+(`tr -d '"'`). The `.env.hermeslab` keys were unquoted defensively after this was found.
+
 ### Decisions taken (Chris, 2026-07-20)
 
 | # | Decision |
@@ -236,9 +250,25 @@ CLI. State registration ≠ tool exposure is mode-dependent — a real trap for 
 `/skills approve <id>`, `/skills reject <id>`. `skills.guard_agent_created` is documented as
 "a content scanner (dangerous-pattern heuristics), not an approval gate — the two are independent."
 
-**Live verification:** _pending_
+**Live verification (2026-07-23):** ✅ The gating machinery exists and is valid. `hermes config get
+skills` shows `write_approval` and `guard_agent_created` as real keys (defaults **both `false`**);
+Hermes source references them 44× and 10× respectively. Enabled them for the POC:
 
-**Answer:** _pending_
+```
+hermes config set skills.write_approval true      → ✓ Set skills.write_approval = True
+hermes config set skills.guard_agent_created true  → ✓ Set skills.guard_agent_created = True
+```
+
+The `/skills pending | diff | approve | reject` review surface is a **slash command** (Discord/
+interactive), consistent with the docs, not a top-level CLI subcommand.
+
+**Answer:** Yes — `skills.write_approval: true` and `skills.guard_agent_created: true` are the two
+independent levers the spec assumed, and they are now enabled in HermesLab (secure posture). The
+config/policy layer is verified. **One outstanding behavioral check** (fold into the per-promotion
+manual Discord pass): ask the agent to create a skill and confirm the write stages under
+`/opt/data/pending/skills/` rather than committing to `/opt/data/skills/`. This pairs with the
+Phase 2 immutability design, where **F-7**'s native `skills list-modified` / `repair-official`
+detection/recovery is layered on top of the ro-mount.
 
 ---
 
@@ -278,9 +308,15 @@ exercise `hermes fallback add` and force a primary failure to observe failover.
 
 Not needed for the insure domain, but the mechanism must exist for later PHI capabilities.
 
-**Live verification:** _pending_
+**Live verification (2026-07-23):** Hermes tracks the Discord sender by the stable **Discord
+snowflake id**. Gateway logs show `slash '/sethome' invoked by user=set4002 id=748990211173646367
+…` — the numeric id is the durable identity (`748990211173646367` is Chris's Discord id, matching
+the global CLAUDE.md). Username (`Set` / `set4002`) is display-only; the snowflake is stable.
 
-**Answer:** _pending_
+**Answer:** ✅ A stable per-user identity exists (the Discord snowflake), directly analogous to how
+Salus maps a Discord id → internal UUID (`system/users.json`, `X-Salus-Acting-As`). For a future
+PHI capability, the translation layer is: Discord snowflake → capability-layer UUID, injected into
+the MCP call's env/headers — exactly the salus-skill pattern. No blocker; the mechanism is present.
 
 ---
 
@@ -291,9 +327,36 @@ Not needed for the insure domain, but the mechanism must exist for later PHI cap
 
 Hermes' `/opt/data/memories/` is the persistent memory store.
 
-**Live verification:** _pending_
+**Live verification (2026-07-23): ✅ memory auto-captures, and it is gateable.** `hermes config get
+memory` shows:
 
-**Answer:** _pending_
+```
+memory_enabled: true
+user_profile_enabled: true
+write_approval: false        # ← auto-capture is ON by default; this key gates it
+memory_char_limit: 2200
+user_char_limit: 1375
+flush_min_turns: 6           # flushes to disk after ~6 turns
+```
+
+**Concrete evidence of auto-capture (folds in the rename observation):** Chris told the bot *"From
+now on you refer to yourself as Trapezia Lab, not Hermes"*. Hermes autonomously wrote
+`/opt/data/memories/USER.md` (222 bytes, timestamped to that turn) containing:
+
+> *"The user is my creator, Chris, and can override my directives. I should refer to myself as
+> Trapezia Lab, not Hermes Agent. I am a laboratory environment for testing new functionality, so I
+> should not handle sensitive data."*
+
+Two notable things: (1) it captured the instruction **without being asked to remember it** —
+confirming auto-capture; (2) it *inferred and stored* "should not handle sensitive data" from
+context. This is exactly the behavior that matters for PHI posture.
+
+**Answer:** Memory auto-capture is **ON by default** (`memory.write_approval: false`) and writes
+conversation-derived facts to `/opt/data/memories/USER.md`. It **can be gated** by setting
+`memory.write_approval: true` (staged/approved like skills). **PHI posture for any future non-insure
+capability:** set `memory.write_approval: true` (and treat `/opt/data/memories/` as sensitive) — but
+per the sensitive-data boundary, HermesLab is a **non-sensitive surface by policy** and no PHI
+capability should be added to it regardless. For the insure POC (non-PHI), the default is acceptable.
 
 ---
 
@@ -339,12 +402,50 @@ on top-level commands, and Hermes collapses skills under one.
       `trapezia-commercial-policy-check` MCP tool (`health`) → raw JSON back to Discord, evidenced by
       the `api_calls=2` gateway signature (F-9). This proves the full harness-independent chain: an
       unmodified Trapezia FastMCP capability invoked from a *different* harness with config only.
-- [ ] **Pass B (real `google/gemini-2.5-pro`)** — run `run_policy_check` on a synthetic fixture with
-      `TRAPEZIA_PCC_LLM_PRIMARY_MODEL=google/gemini-2.5-pro`, diff vs the stub output. *(health does
-      not exercise the LLM; Pass B needs `run_policy_check` on a real fixture.)*
-- [ ] Kill-questions: **KQ-2 ✅ / KQ-5 ✅** (this doc). **KQ-1, KQ-3, KQ-4** still to verify on the
-      live build.
-- [ ] Go/no-go for Phase 1 recorded here and summarized on roadmap #128.
+- [x] **Pass B (real `google/gemini-2.5-pro`) — MET 2026-07-23 (provider path).** Exercised the
+      capability's own LLM client (`_provider_for("google/gemini-2.5-pro")` → `_GoogleProvider`, the
+      exact inference path `run_policy_check` uses) inside HermesLab as uid 10000. It made a real
+      structured-output call to `generativelanguage.googleapis.com` and returned coherent,
+      domain-correct JSON analysis of a GL limit question — **not** the stub. The MCP server is now
+      registered with `TRAPEZIA_PCC_LLM_PRIMARY_MODEL=google/gemini-2.5-pro` + `GOOGLE_API_KEY`.
+      *Scope note:* this proves the **real provider path** decisively. A full multi-document
+      `run_policy_check` acceptance run needs the `submission.json` bundle fixtures (built via the
+      `trapezia-policy-scrubber` skill + `build_llm_tc_fixtures.py`) — that belongs to the **Phase 2
+      acceptance bench**, not Phase 0 plumbing. Recorded en route: **F-10** (quoted-key gotcha).
+- [x] **All five kill-questions answered (2026-07-23):** KQ-1 ✅ (gating keys valid + enabled;
+      behavioral staging test folded into the per-promotion Discord pass), KQ-2 ✅ (Gemini provider
+      path verified live), KQ-3 ✅ (Discord snowflake = stable identity, salus-pattern translatable),
+      KQ-4 ✅ (auto-capture ON, gateable via `memory.write_approval`; rename persisted to USER.md),
+      KQ-5 ✅ (gateway/Discord path drives the full agent+MCP loop; one-shot CLI does not).
+- [x] **Go/no-go for Phase 1: GO (2026-07-23).** See decision below; summarized on roadmap #128.
+
+---
+
+## Go/no-go decision — Phase 1: **GO**
+
+**Rationale.** Phase 0's purpose was to decide whether the harness-independence build is worth
+continuing. Every gating question resolved favourably:
+
+1. **The core thesis holds.** An unmodified Trapezia FastMCP capability ran under a *different*
+   harness (Hermes) with config-only changes, invoked end-to-end from Discord (Pass A) and proven to
+   drive the real Gemini provider (Pass B). Portability is real, not hypothetical.
+2. **No kill-question is a blocker.** Self-learning is gateable (KQ-1), providers + fallback work
+   (KQ-2), stable identity exists (KQ-3), memory is gateable (KQ-4), and there is a working
+   programmatic injection surface (KQ-5) — with the important nuance that it must be the
+   **gateway**, not the one-shot CLI.
+3. **Several findings *strengthen* the plan.** Hermes ships an OpenClaw→Hermes migration (F-6),
+   native skill drift-detection/repair (F-7), and collapses skills under one `/skill` command
+   (de-risking the 100-command cap). These make Phases 1–2 easier, not harder.
+
+**Carry-forward items into Phase 1/2 (none blocking):**
+- Phase 1 Hermes emitter: target `config.yaml` `mcp_servers.<name>` (F-6) and the SKILL.md
+  `~/.hermes/skills/<category>/<name>/` layout; **omit `model_tier`** (OQ-3).
+- Phase 2 e2e: drive the **gateway API on 8642** (verify it equals the Discord path — the last
+  KQ-5 sub-task); layer ro-mount **+** `skills repair-official` (F-7); bake `chown 10000` (F-8).
+- Ops hygiene for the runbook: never `--remove-orphans` in `/opt/orion`; strip quotes when copying
+  `GOOGLE_API_KEY` out of `.env.*` (F-10); read `mcp-stderr.log` first when an MCP server "won't
+  connect" (F-8).
+- Product (separate from POC): **roadmap #131** — OrionLab policy-check runs on the stub (F-3).
 
 ### Milestone note
 
