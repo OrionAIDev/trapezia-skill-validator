@@ -1,0 +1,44 @@
+---
+name: {{ name }}
+description: {{ description }}
+version: {{ version }}
+{% if required_env %}
+required_environment_variables:
+{% for e in required_env %}
+  - {{ e }}
+{% endfor %}
+{% endif %}
+metadata:
+  hermes:
+    category: insure
+    tags: [insurance, policy-check, trapezia]
+---
+
+# {{ name }}
+
+## When to Use
+
+{{ description }}
+{% if triggers %}
+
+Trigger phrases: {{ triggers | join(", ") }}.
+{% endif %}
+
+## Procedure
+
+This skill wraps the `{{ server }}` MCP server (transport: {{ transport }}). Available tools:
+{% for t in tools %}
+- `{{ t }}`
+{% endfor %}
+
+Call `run_policy_check` with the policy payload, then poll `get_run_status` and fetch `get_run_report`.
+
+## Pitfalls
+
+{% for g in guardrails %}
+- {{ g.text }}
+{% endfor %}
+
+## Verification
+
+Call `health` and confirm `status: ok` before running a check.
