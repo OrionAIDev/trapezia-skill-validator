@@ -1,0 +1,31 @@
+---
+name: {{ name }}
+description: {{ description }}
+---
+
+# {{ name }}
+
+{{ description }}
+{% if triggers %}
+
+Use when the user says: {{ triggers | join(", ") }}.
+{% endif %}
+
+## Procedure
+
+Wraps the `{{ server }}` MCP server (transport: {{ transport }}). Tools:
+{% for t in tools %}
+- `{{ t }}`
+{% endfor %}
+
+Call `run_policy_check`, then poll `get_run_status` and fetch `get_run_report`.
+{% if model_tier %}
+
+**Model tier: {{ model_tier }}** (advisory — dispatch judgment-heavy steps to a `{{ model_tier }}`-tier agent).
+{% endif %}
+
+## Guardrails
+
+{% for g in guardrails %}
+- {{ g.text }}
+{% endfor %}
