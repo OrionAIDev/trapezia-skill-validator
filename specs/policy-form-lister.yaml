@@ -1,0 +1,37 @@
+# specs/policy-form-lister.yaml
+# Type-B demo skill: SKILL.md + scripts, no MCP. Proves bundle + per-harness
+# {skill_root} script-path templating (Phase 2, Gap 1).
+name: policy-form-lister
+spec_version: 0
+version: 0.1.0
+description: >-
+  List the insurance form numbers (ISO commercial-lines and ACORD) referenced in
+  a policy document. Use when the user asks to "list the forms", "what forms are
+  in this policy", or wants a form-number inventory.
+triggers:
+  - "list forms"
+  - "what forms are in this policy"
+  - "form inventory"
+invokes:
+  - kind: cli
+    exec: python {skill_root}/scripts/list_forms.py --input <policy.txt>
+bundle:
+  - scripts/list_forms.py
+  - references/form-glossary.md
+usage: >-
+  Run list_forms.py with --input pointing at the policy text; it prints the
+  sorted unique form numbers as JSON. Deterministic, no network, no LLM.
+guardrails:
+  - id: deterministic-only
+    text: >-
+      This is a deterministic text scan, not a coverage judgment — report the
+      form numbers it finds and do not infer coverage from their presence or
+      absence.
+  - id: commercial-forms
+    text: >-
+      Recognizes ISO commercial-lines and ACORD form numbers only; unrecognized
+      or manuscript forms will not appear.
+harnesses:
+  hermes: {category: insure}
+  openclaw: {}
+  claude_code: {}
