@@ -83,6 +83,33 @@ def test_no_action_items_fails_when_present(make_skill) -> None:
     assert _run("no_action_items", root).status is Status.FAIL
 
 
+def test_mypy_strict_passes_with_no_scripts_dir(make_skill) -> None:
+    root = make_skill("noscripts")
+    assert _run("mypy.strict", root).status is Status.PASS
+
+
+def test_mypy_strict_passes_on_clean_typed_code(make_skill) -> None:
+    root = make_skill(
+        "typed",
+        {"scripts/main.py": "from __future__ import annotations\n\n\ndef add(a: int, b: int) -> int:\n    return a + b\n"},
+    )
+    assert _run("mypy.strict", root).status is Status.PASS
+
+
+def test_mypy_strict_fails_on_untyped_def(make_skill) -> None:
+    root = make_skill(
+        "untyped",
+        {"scripts/main.py": "def add(a, b):\n    return a + b\n"},
+    )
+    assert _run("mypy.strict", root).status is Status.FAIL
+
+
+def test_mypy_strict_passes_on_scripts_dir_with_no_python(make_skill) -> None:
+    """A scripts/ dir holding only shell scripts has nothing for mypy to check."""
+    root = make_skill("shellonly", {"scripts/run.sh": "#!/bin/sh\necho hi\n"})
+    assert _run("mypy.strict", root).status is Status.PASS
+
+
 def test_docstrings_ignores_venv_and_vendored(make_skill) -> None:
     """docstrings.present must not walk into .venv/site-packages."""
     root = make_skill(

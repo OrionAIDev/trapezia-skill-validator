@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 from ..context import AuditContext
@@ -210,6 +211,38 @@ def no_action_items(ctx: AuditContext) -> CheckResult:
             0,
         )
     return _result("no_action_items", Status.PASS, Severity.MEDIUM, "ok", 0)
+
+
+@register("mypy.strict", min_level=1)
+def mypy_strict(ctx: AuditContext) -> CheckResult:
+    """scripts/ passes ``mypy --strict`` with zero errors."""
+    scripts_dir = ctx.root / "scripts"
+    if not scripts_dir.is_dir():
+        return _result("mypy.strict", Status.PASS, Severity.HIGH, "no scripts/ dir", 1)
+    if not any(scripts_dir.rglob("*.py")) and not any(scripts_dir.rglob("*.pyi")):
+        return _result("mypy.strict", Status.PASS, Severity.HIGH, "no Python files in scripts/", 1)
+    with tempfile.TemporaryDirectory() as cache_dir:
+        proc = subprocess.run(
+            [
+                "python",
+                "-m",
+                "mypy",
+                "--strict",
+                "--ignore-missing-imports",
+                "--cache-dir",
+                cache_dir,
+                str(scripts_dir),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(ctx.root),
+        )
+    output = (proc.stdout + proc.stderr).strip()
+    if proc.returncode == 0:
+        return _result("mypy.strict", Status.PASS, Severity.HIGH, "ok", 1)
+    if "No module named mypy" in output:
+        return _result("mypy.strict", Status.WARN, Severity.LOW, "mypy not installed; skipped", 1)
+    return _result("mypy.strict", Status.FAIL, Severity.HIGH, f"mypy --strict errors:\n{output[:2000]}", 1)
 
 
 @register("docstrings.present", min_level=1)
