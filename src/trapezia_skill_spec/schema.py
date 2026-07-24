@@ -22,13 +22,19 @@ class SpecError(ValueError):
 
 @dataclass(frozen=True)
 class Invocation:
-    """One capability-core port the wrapper calls."""
+    """One capability-core port the wrapper calls.
+
+    ``mcp`` invokes use ``server``/``transport``/``tools`` (and optional
+    ``launch``); ``cli`` invokes use ``exec`` (a command that may contain the
+    ``{skill_root}`` token) and leave the mcp-only fields empty.
+    """
 
     kind: str
     server: str
     transport: str
     tools: list[str]
     launch: str | None = None
+    exec: str | None = None
     required_env: list[str] = field(default_factory=list)
 
 
@@ -53,6 +59,8 @@ class CanonicalSpec:
     guardrails: list[Guardrail]
     model_tier: str | None
     harnesses: dict[str, dict[str, Any]]
+    bundle: list[str] = field(default_factory=list)
+    usage: str | None = None
 
 
 def _require(data: dict[str, Any], key: str) -> object:
@@ -97,22 +105,47 @@ def load_spec(path: str | Path) -> CanonicalSpec:
         kind = str(_require(inv, "kind"))
         if kind not in INVOKE_KINDS:
             raise SpecError(f"invokes[{i}].kind must be one of {sorted(INVOKE_KINDS)}: {kind!r}")
-        transport = str(_require(inv, "transport"))
-        if transport not in TRANSPORTS:
-            raise SpecError(f"invokes[{i}].transport must be one of {sorted(TRANSPORTS)}: {transport!r}")
-        tools = _require(inv, "tools")
-        if not isinstance(tools, list) or not tools:
-            raise SpecError(f"invokes[{i}].tools must be a non-empty list")
-        invokes.append(
-            Invocation(
-                kind=kind,
-                server=str(_require(inv, "server")),
-                transport=transport,
-                tools=[str(t) for t in tools],
-                launch=inv.get("launch"),
-                required_env=[str(e) for e in inv.get("required_env", [])],
+        if kind == "mcp":
+            transport = str(_require(inv, "transport"))
+            if transport not in TRANSPORTS:
+                raise SpecError(
+                    f"invokes[{i}].transport must be one of {sorted(TRANSPORTS)}: {transport!r}"
+                )
+            tools = _require(inv, "tools")
+            if not isinstance(tools, list) or not tools:
+                raise SpecError(f"invokes[{i}].tools must be a non-empty list")
+            invokes.append(
+                Invocation(
+                    kind=kind,
+                    server=str(_require(inv, "server")),
+                    transport=transport,
+                    tools=[str(t) for t in tools],
+                    launch=inv.get("launch"),
+                    required_env=[str(e) for e in inv.get("required_env", [])],
+                )
             )
-        )
+        else:  # cli
+            invokes.append(
+                Invocation(
+                    kind=kind,
+                    server="",
+                    transport="",
+                    tools=[],
+                    exec=str(_require(inv, "exec")),
+                    required_env=[str(e) for e in inv.get("required_env", [])],
+                )
+            )
+
+    bundle_raw = raw.get("bundle", [])
+    if not isinstance(bundle_raw, list):
+        raise SpecError("bundle must be a list of relative paths")
+    bundle: list[str] = []
+    for b in bundle_raw:
+        rel = str(b)
+        parts = re.split(r"[\\/]", rel)
+        if rel.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", rel) or ".." in parts:
+            raise SpecError(f"bundle paths must be relative and contain no '..': {rel!r}")
+        bundle.append(rel)
 
     guardrails: list[Guardrail] = []
     seen_ids: set[str] = set()
@@ -133,4 +166,6 @@ def load_spec(path: str | Path) -> CanonicalSpec:
         guardrails=guardrails,
         model_tier=model_tier,
         harnesses=dict(raw.get("harnesses", {})),
+        bundle=bundle,
+        usage=raw.get("usage"),
     )
