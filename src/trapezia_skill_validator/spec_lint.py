@@ -57,6 +57,49 @@ def lint_spec(path: str | Path) -> list[CheckResult]:
                 0,
             )
         )
+
+    # spec.exec-token: a cli invoke's exec must reference {skill_root} so the
+    # command resolves to the harness-correct deployed path (portability smell).
+    cli_execs = [inv.exec for inv in spec.invokes if inv.kind == "cli" and inv.exec is not None]
+    if cli_execs:
+        no_token = [e for e in cli_execs if "{skill_root}" not in e]
+        if no_token:
+            results.append(
+                CheckResult(
+                    "spec.exec-token",
+                    Status.WARN,
+                    Severity.MEDIUM,
+                    f"cli exec lacks {{skill_root}} (non-portable path): {no_token[0]!r}",
+                    0,
+                )
+            )
+        else:
+            results.append(
+                CheckResult(
+                    "spec.exec-token", Status.PASS, Severity.MEDIUM, "cli exec paths templated", 0
+                )
+            )
+
+    # spec.bundle-exists: each bundle path must resolve under skills/<name>/.
+    if spec.bundle:
+        assets_root = Path(path).resolve().parent.parent / "skills" / spec.name
+        missing = [rel for rel in spec.bundle if not (assets_root / rel).is_file()]
+        if missing:
+            results.append(
+                CheckResult(
+                    "spec.bundle-exists",
+                    Status.WARN,
+                    Severity.MEDIUM,
+                    f"bundle path(s) not found under {assets_root}: {missing}",
+                    0,
+                )
+            )
+        else:
+            results.append(
+                CheckResult(
+                    "spec.bundle-exists", Status.PASS, Severity.MEDIUM, "bundle files present", 0
+                )
+            )
     return results
 
 
