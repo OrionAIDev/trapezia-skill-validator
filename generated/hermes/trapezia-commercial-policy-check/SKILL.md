@@ -7,7 +7,7 @@ required_environment_variables:
 metadata:
   hermes:
     category: insure
-    tags: [insurance, policy-check, trapezia]
+    tags: [insure, trapezia]
 ---
 
 # trapezia-commercial-policy-check
@@ -20,13 +20,10 @@ Trigger phrases: policy check, check this policy, review coverage.
 
 ## Procedure
 
-This skill wraps the `trapezia-commercial-policy-check` MCP server (transport: stdio). Available tools:
-- `health`
-- `run_policy_check`
-- `get_run_status`
-- `get_run_report`
+Call run_policy_check with the policy payload, then poll get_run_status and fetch get_run_report.
 
-Call `run_policy_check` with the policy payload, then poll `get_run_status` and fetch `get_run_report`.
+This skill wraps 1 MCP server(s):
+- `trapezia-commercial-policy-check` (transport: stdio) tools: `health`, `run_policy_check`, `get_run_status`, `get_run_report`
 
 ## Pitfalls
 
@@ -35,4 +32,4 @@ Call `run_policy_check` with the policy payload, then poll `get_run_status` and 
 
 ## Verification
 
-Call `health` and confirm `status: ok` before running a check.
+Confirm the MCP server responds (e.g. its `health`/status tool) before relying on a result.

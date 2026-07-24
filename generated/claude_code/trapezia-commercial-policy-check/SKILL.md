@@ -11,13 +11,10 @@ Use when the user says: policy check, check this policy, review coverage.
 
 ## Procedure
 
-Wraps the `trapezia-commercial-policy-check` MCP server (transport: stdio). Tools:
-- `health`
-- `run_policy_check`
-- `get_run_status`
-- `get_run_report`
+Call run_policy_check with the policy payload, then poll get_run_status and fetch get_run_report.
 
-Call `run_policy_check`, then poll `get_run_status` and fetch `get_run_report`.
+Wraps 1 MCP server(s):
+- `trapezia-commercial-policy-check` (transport: stdio) tools: `health`, `run_policy_check`, `get_run_status`, `get_run_report`
 
 **Model tier: sonnet** (advisory — dispatch judgment-heavy steps to a `sonnet`-tier agent).
 

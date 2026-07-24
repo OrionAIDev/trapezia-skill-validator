@@ -12,13 +12,27 @@ Trigger phrases: {{ triggers | join(", ") }}.
 {% endif %}
 
 ## Procedure
+{% if usage %}
 
-Wraps the `{{ server }}` MCP server (transport: {{ transport }}). Tools:
-{% for t in tools %}
-- `{{ t }}`
+{{ usage }}
+{% endif %}
+{% if mcp_servers %}
+
+Wraps {{ mcp_servers | length }} MCP server(s):
+{% for s in mcp_servers %}
+- `{{ s.server }}` (transport: {{ s.transport }}) tools: {% for t in s.tools %}`{{ t }}`{% if not loop.last %}, {% endif %}{% endfor %}
+
 {% endfor %}
+{% endif %}
+{% if cli_cmds %}
 
-Call `run_policy_check`, then poll `get_run_status` and fetch `get_run_report`.
+Run the bundled script(s):
+{% for c in cli_cmds %}
+```
+{{ c }}
+```
+{% endfor %}
+{% endif %}
 {% if model_tier %}
 
 **Model tier: {{ model_tier }}** (advisory — apply where the harness supports per-task model selection).

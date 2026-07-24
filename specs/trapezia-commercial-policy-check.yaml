@@ -34,8 +34,11 @@ guardrails:
     text: >-
       This capability is for commercial (business) insurance policies only and
       handles no personal health information.
+usage: >-
+  Call run_policy_check with the policy payload, then poll get_run_status and
+  fetch get_run_report.
 model_tier: sonnet
 harnesses:
-  hermes: {}
+  hermes: {category: insure}
   openclaw: {}
   claude_code: {}

@@ -10,8 +10,8 @@ required_environment_variables:
 {% endif %}
 metadata:
   hermes:
-    category: insure
-    tags: [insurance, policy-check, trapezia]
+    category: {{ category }}
+    tags: [{{ category }}, trapezia]
 ---
 
 # {{ name }}
@@ -25,13 +25,27 @@ Trigger phrases: {{ triggers | join(", ") }}.
 {% endif %}
 
 ## Procedure
+{% if usage %}
 
-This skill wraps the `{{ server }}` MCP server (transport: {{ transport }}). Available tools:
-{% for t in tools %}
-- `{{ t }}`
+{{ usage }}
+{% endif %}
+{% if mcp_servers %}
+
+This skill wraps {{ mcp_servers | length }} MCP server(s):
+{% for s in mcp_servers %}
+- `{{ s.server }}` (transport: {{ s.transport }}) tools: {% for t in s.tools %}`{{ t }}`{% if not loop.last %}, {% endif %}{% endfor %}
+
 {% endfor %}
+{% endif %}
+{% if cli_cmds %}
 
-Call `run_policy_check` with the policy payload, then poll `get_run_status` and fetch `get_run_report`.
+Run the bundled script(s):
+{% for c in cli_cmds %}
+```
+{{ c }}
+```
+{% endfor %}
+{% endif %}
 
 ## Pitfalls
 
@@ -40,5 +54,11 @@ Call `run_policy_check` with the policy payload, then poll `get_run_status` and 
 {% endfor %}
 
 ## Verification
+{% if mcp_servers %}
 
-Call `health` and confirm `status: ok` before running a check.
+Confirm the MCP server responds (e.g. its `health`/status tool) before relying on a result.
+{% endif %}
+{% if cli_cmds %}
+
+Run the script against a known input and confirm it exits 0 with the expected output.
+{% endif %}
