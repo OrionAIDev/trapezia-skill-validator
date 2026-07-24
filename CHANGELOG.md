@@ -4,6 +4,11 @@ All notable changes documented here. Format per [Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-24
+
+### Added
+- Added `mypy.strict` check (T1+) — runs `mypy --strict` against a skill's `scripts/` directory, FAILs with the mypy error output on any error. PASSes when `scripts/` is absent or holds no `.py`/`.pyi` files (e.g. shell-only scripts); WARNs if `mypy` isn't installed. Added `mypy>=1.8` to the `test` optional-dependency extra.
+
 ## [0.1.2] - 2026-06-01
 
 ### Added
