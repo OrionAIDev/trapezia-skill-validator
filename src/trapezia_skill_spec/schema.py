@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -51,10 +52,10 @@ class CanonicalSpec:
     invokes: list[Invocation]
     guardrails: list[Guardrail]
     model_tier: str | None
-    harnesses: dict[str, dict]
+    harnesses: dict[str, dict[str, Any]]
 
 
-def _require(data: dict, key: str) -> object:
+def _require(data: dict[str, Any], key: str) -> object:
     if key not in data or data[key] in (None, ""):
         raise SpecError(f"missing required field: {key}")
     return data[key]
@@ -80,7 +81,7 @@ def load_spec(path: str | Path) -> CanonicalSpec:
     if not _KEBAB.match(name):
         raise SpecError(f"name must be kebab-case: {name!r}")
 
-    spec_version = int(_require(raw, "spec_version"))
+    spec_version = int(str(_require(raw, "spec_version")))
     if spec_version not in SPEC_VERSIONS:
         raise SpecError(f"unknown spec_version: {spec_version}")
 

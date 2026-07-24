@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
@@ -19,7 +20,7 @@ def _oneline(text: str) -> str:
     return _WS.sub(" ", text).strip()
 
 
-def build_context(spec: CanonicalSpec) -> dict:
+def build_context(spec: CanonicalSpec) -> dict[str, Any]:
     """Flatten a spec into the plain dict the templates consume.
 
     Args:
