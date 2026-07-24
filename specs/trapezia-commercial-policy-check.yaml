@@ -1,0 +1,41 @@
+# specs/trapezia-commercial-policy-check.yaml
+name: trapezia-commercial-policy-check
+spec_version: 0
+version: 0.1.0
+description: >-
+  Run an automated commercial-insurance policy check and produce a coverage/gap
+  report. Use when the user asks to "check a policy", "run a policy check", or
+  "review coverage", or drops a commercial policy document expecting analysis.
+triggers:
+  - "policy check"
+  - "check this policy"
+  - "review coverage"
+invokes:
+  - kind: mcp
+    server: trapezia-commercial-policy-check
+    transport: stdio
+    launch: python -m trapezia_commercial_policy_check.mcp_server
+    tools:
+      - health
+      - run_policy_check
+      - get_run_status
+      - get_run_report
+    # Only GOOGLE_API_KEY: direct-Anthropic is deprecated (FR-7.5); the real provider is
+    # selected by a "<provider>/<model>" id (google/... or claude-cli/...). A bare model
+    # name resolves to the hermetic stub. Confirmed on the live OrionLab deployment 2026-07-20.
+    required_env:
+      - GOOGLE_API_KEY
+guardrails:
+  - id: service-unreachable
+    text: >-
+      If the policy-check MCP service is unreachable or a tool returns an error,
+      surface the error verbatim and do not improvise a coverage verdict.
+  - id: commercial-only
+    text: >-
+      This capability is for commercial (business) insurance policies only and
+      handles no personal health information.
+model_tier: sonnet
+harnesses:
+  hermes: {}
+  openclaw: {}
+  claude_code: {}
