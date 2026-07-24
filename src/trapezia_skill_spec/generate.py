@@ -13,6 +13,7 @@ from .schema import CanonicalSpec
 HARNESSES = ("hermes", "openclaw", "claude_code")
 _TEMPLATES = Path(__file__).parent / "templates"
 _WS = re.compile(r"\s+")
+_DEFAULT_CATEGORY = "general"
 
 
 def _oneline(text: str) -> str:
@@ -20,36 +21,76 @@ def _oneline(text: str) -> str:
     return _WS.sub(" ", text).strip()
 
 
-def build_context(spec: CanonicalSpec) -> dict[str, Any]:
-    """Flatten a spec into the plain dict the templates consume.
+def _category(spec: CanonicalSpec) -> str:
+    """The Hermes category for ``spec`` (from ``harnesses.hermes.category``)."""
+    return str(spec.harnesses.get("hermes", {}).get("category", _DEFAULT_CATEGORY))
+
+
+def skill_root(harness: str, spec: CanonicalSpec) -> str:
+    """Return the deployed skill-root path for ``spec`` under ``harness``.
+
+    This is the value substituted for the ``{skill_root}`` token in a cli
+    invoke's ``exec`` command.
+
+    Args:
+        harness: one of :data:`HARNESSES`.
+        spec: the canonical spec (supplies name and Hermes category).
+
+    Returns:
+        The harness-correct skill-root path.
+
+    Raises:
+        ValueError: if ``harness`` is unknown.
+    """
+    if harness == "hermes":
+        return f"~/.hermes/skills/{_category(spec)}/{spec.name}"
+    if harness == "openclaw":
+        return f"/home/node/.openclaw/workspace/skills/{spec.name}"
+    if harness == "claude_code":
+        return f"~/.claude/skills/{spec.name}"
+    raise ValueError(f"unknown harness: {harness!r} (expected one of {HARNESSES})")
+
+
+def build_context(spec: CanonicalSpec, harness: str) -> dict[str, Any]:
+    """Flatten a spec into the plain dict the ``harness`` template consumes.
 
     Args:
         spec: the canonical spec.
+        harness: one of :data:`HARNESSES` (selects the ``{skill_root}`` value).
 
     Returns:
-        A dict with primitive fields (name, description, tools, guardrails, ...).
+        A dict with ``mcp_servers`` (structured list), ``cli_cmds`` (exec
+        strings with ``{skill_root}`` resolved), and the shared metadata fields.
     """
-    tools: list[str] = []
+    root = skill_root(harness, spec)
     required_env: list[str] = []
-    server = transport = None
+    mcp_servers: list[dict[str, Any]] = []
+    cli_cmds: list[str] = []
     for inv in spec.invokes:
-        server = server or inv.server
-        transport = transport or inv.transport
-        for t in inv.tools:
-            if t not in tools:
-                tools.append(t)
         for e in inv.required_env:
             if e not in required_env:
                 required_env.append(e)
+        if inv.kind == "mcp":
+            mcp_servers.append(
+                {
+                    "server": inv.server,
+                    "transport": inv.transport,
+                    "tools": list(inv.tools),
+                    "required_env": list(inv.required_env),
+                }
+            )
+        elif inv.kind == "cli" and inv.exec is not None:
+            cli_cmds.append(inv.exec.replace("{skill_root}", root))
     return {
         "name": spec.name,
         "description": _oneline(spec.description),
         "version": spec.version,
         "triggers": list(spec.triggers),
-        "server": server,
-        "transport": transport,
-        "tools": tools,
+        "category": _category(spec),
+        "mcp_servers": mcp_servers,
+        "cli_cmds": cli_cmds,
         "required_env": required_env,
+        "usage": _oneline(spec.usage) if spec.usage else None,
         "guardrails": [{"id": g.id, "text": _oneline(g.text)} for g in spec.guardrails],
         "model_tier": spec.model_tier,
     }
@@ -81,4 +122,4 @@ def generate(spec: CanonicalSpec, harness: str) -> str:
     if harness not in HARNESSES:
         raise ValueError(f"unknown harness: {harness!r} (expected one of {HARNESSES})")
     template = _env().get_template(f"{harness}.md.j2")
-    return template.render(**build_context(spec))
+    return template.render(**build_context(spec, harness))
