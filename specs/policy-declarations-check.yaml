@@ -1,0 +1,71 @@
+# specs/policy-declarations-check.yaml
+# Type-D demo skill: SKILL.md + scripts + MCP invoke together in one skill
+# (Phase 5). Schema/generator already supported mixed `invokes` lists
+# (unit-tested in test_mixed_invokes_type_d_loads, Phase 2) but no real
+# spec had exercised the path end-to-end until this one.
+#
+# The MCP half deliberately reuses the already-deployed
+# trapezia-commercial-policy-check server (same launch/tools/required_env
+# as specs/trapezia-commercial-policy-check.yaml) rather than standing up a
+# second server — that's the realistic pattern: the checking engine is
+# registered once, and a second skill can legitimately invoke the same MCP
+# tools with a different front-end (raw-text extraction instead of a
+# caller-supplied payload).
+name: policy-declarations-check
+spec_version: 0
+version: 0.1.0
+description: >-
+  Extract a commercial policy's declarations-page fields from raw policy text
+  and run them straight through the automated coverage/gap check. Use when
+  the user wants a policy checked but only has the raw policy text, not a
+  pre-built PolicyCheckingRun payload — this skill does the extraction step
+  and the check in one pass.
+triggers:
+  - "intake this policy"
+  - "extract and check this policy"
+  - "declarations check"
+invokes:
+  - kind: cli
+    exec: python {skill_root}/scripts/extract_declarations.py --input <policy.txt>
+  - kind: mcp
+    server: trapezia-commercial-policy-check
+    transport: stdio
+    launch: python -m trapezia_commercial_policy_check.mcp_server
+    tools:
+      - health
+      - run_policy_check
+      - get_run_status
+      - get_run_report
+    required_env:
+      - GOOGLE_API_KEY
+bundle:
+  - scripts/extract_declarations.py
+  - references/declarations-field-map.md
+guardrails:
+  - id: deterministic-extraction-only
+    text: >-
+      extract_declarations.py is a deterministic text scan of the declarations
+      page, not a coverage judgment — fields it cannot find are omitted, not
+      guessed. Do not fabricate a policy_number, dates, or limits that were
+      not present in the source text.
+  - id: service-unreachable
+    text: >-
+      If the policy-check MCP service is unreachable or a tool returns an
+      error, surface the error verbatim and do not improvise a coverage
+      verdict.
+  - id: commercial-only
+    text: >-
+      This capability is for commercial (business) insurance policies only
+      and handles no personal health information.
+usage: >-
+  Run extract_declarations.py against the raw policy text to get a `policy`
+  document, wrap it in a PolicyCheckingRun payload (run_id/run_timestamp/
+  spec_version plus the extracted `policy`), call run_policy_check, then poll
+  get_run_status and fetch get_run_report — same engine as
+  trapezia-commercial-policy-check, but starting from raw declarations text
+  instead of a pre-built payload.
+model_tier: sonnet
+harnesses:
+  hermes: {category: insure}
+  openclaw: {}
+  claude_code: {}
