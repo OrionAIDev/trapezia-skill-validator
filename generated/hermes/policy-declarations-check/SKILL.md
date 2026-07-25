@@ -27,7 +27,7 @@ This skill wraps 1 MCP server(s):
 
 Run the bundled script(s):
 ```
-python ~/.hermes/skills/insure/policy-declarations-check/scripts/extract_declarations.py --input <policy.txt>
+python /opt/data/skills/insure/policy-declarations-check/scripts/extract_declarations.py --input <policy.txt>
 ```
 
 ## Pitfalls

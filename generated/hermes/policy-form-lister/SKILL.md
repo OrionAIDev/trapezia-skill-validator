@@ -22,7 +22,7 @@ Run list_forms.py with --input pointing at the policy text; it prints the sorted
 
 Run the bundled script(s):
 ```
-python ~/.hermes/skills/insure/policy-form-lister/scripts/list_forms.py --input <policy.txt>
+python /opt/data/skills/insure/policy-form-lister/scripts/list_forms.py --input <policy.txt>
 ```
 
 ## Pitfalls

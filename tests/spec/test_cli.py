@@ -81,7 +81,7 @@ def test_all_templates_exec_path_per_harness(tmp_path: Path) -> None:
     main([str(spec), "--all", "--out", str(out)])
     hermes = (out / "hermes" / "policy-form-lister" / "SKILL.md").read_text(encoding="utf-8")
     openclaw = (out / "openclaw" / "policy-form-lister" / "SKILL.md").read_text(encoding="utf-8")
-    assert "~/.hermes/skills/insure/policy-form-lister/scripts/list_forms.py" in hermes
+    assert "/opt/data/skills/insure/policy-form-lister/scripts/list_forms.py" in hermes
     assert "/opt/openclaw-workspace/skills/policy-form-lister/scripts/list_forms.py" in openclaw
 
 

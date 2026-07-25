@@ -53,7 +53,7 @@ def _spec(tmp_path: Path, text: str):  # type: ignore[no-untyped-def]
 
 def test_skill_root_per_harness(tmp_path: Path) -> None:
     spec = _spec(tmp_path, CLI_SPEC)
-    assert skill_root("hermes", spec) == "~/.hermes/skills/insure/policy-form-lister"
+    assert skill_root("hermes", spec) == "/opt/data/skills/insure/policy-form-lister"
     assert skill_root("openclaw", spec) == "/opt/openclaw-workspace/skills/policy-form-lister"
     assert skill_root("claude_code", spec) == "~/.claude/skills/policy-form-lister"
 
@@ -63,7 +63,7 @@ def test_cli_command_resolved_per_harness(tmp_path: Path) -> None:
     hermes = build_context(spec, "hermes")
     assert hermes["mcp_servers"] == []
     assert hermes["cli_cmds"] == [
-        "python ~/.hermes/skills/insure/policy-form-lister/scripts/list_forms.py --input policy.txt"
+        "python /opt/data/skills/insure/policy-form-lister/scripts/list_forms.py --input policy.txt"
     ]
     assert hermes["usage"] == "Run list_forms.py against the policy text."
 

@@ -9,4 +9,4 @@ mcp_servers:
     - trapezia_commercial_policy_check.mcp_server
     env:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
-    cwd: ~/.hermes/skills/insure/trapezia-commercial-policy-check
+    cwd: /opt/data/skills/insure/trapezia-commercial-policy-check
