@@ -15,7 +15,7 @@ Run list_forms.py with --input pointing at the policy text; it prints the sorted
 
 Run the bundled script(s):
 ```
-python /home/node/.openclaw/workspace/skills/policy-form-lister/scripts/list_forms.py --input <policy.txt>
+python /opt/openclaw-workspace/skills/policy-form-lister/scripts/list_forms.py --input <policy.txt>
 ```
 
 ## Guardrails

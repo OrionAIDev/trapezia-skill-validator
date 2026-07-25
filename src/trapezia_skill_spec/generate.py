@@ -47,7 +47,7 @@ def skill_root(harness: str, spec: CanonicalSpec) -> str:
     if harness == "hermes":
         return f"~/.hermes/skills/{_category(spec)}/{spec.name}"
     if harness == "openclaw":
-        return f"/home/node/.openclaw/workspace/skills/{spec.name}"
+        return f"/opt/openclaw-workspace/skills/{spec.name}"
     if harness == "claude_code":
         return f"~/.claude/skills/{spec.name}"
     raise ValueError(f"unknown harness: {harness!r} (expected one of {HARNESSES})")

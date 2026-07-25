@@ -18,7 +18,7 @@ Wraps 1 MCP server(s):
 
 Run the bundled script(s):
 ```
-python /home/node/.openclaw/workspace/skills/policy-declarations-check/scripts/extract_declarations.py --input <policy.txt>
+python /opt/openclaw-workspace/skills/policy-declarations-check/scripts/extract_declarations.py --input <policy.txt>
 ```
 
 **Model tier: sonnet** (advisory — apply where the harness supports per-task model selection).
