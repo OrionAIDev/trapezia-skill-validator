@@ -13,3 +13,16 @@ jobs:
           python-version: "3.13"
       - run: pip install -e ".[test]"
       - run: pytest -q
+  discord-fidelity-e2e:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/multi-harness-poc' || github.ref == 'refs/heads/master'
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -e ".[test,e2e]"
+      - run: pytest tests/e2e/test_discord_fidelity.py -v
+        env:
+          DISCORD_E2E_TOKEN: ${{ secrets.DISCORD_E2E_TOKEN }}
