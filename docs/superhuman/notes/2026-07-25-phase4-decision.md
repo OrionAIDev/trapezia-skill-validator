@@ -46,6 +46,26 @@ benefit:
 
 Full tradeoff survey in the plan doc.
 
+## Forward-looking guidance (Chris, 2026-07-25)
+
+Staying merged is not a license to let `trapezia_skill_spec` and
+`trapezia_skill_validator` blur together internally. Chris asked that future
+phases keep designing/coding `trapezia_skill_spec` so it stays **easily
+extractable** even while merged — good modular design regardless of the
+extraction decision. Concretely, this means preserving (and not eroding)
+the properties that made this decision easy to reverse later:
+
+- No reverse dependency — `trapezia_skill_spec` code must never import from
+  `trapezia_skill_validator`. The one coupling point stays one-directional
+  (`spec_lint.py` → `trapezia_skill_spec.schema`), not bidirectional.
+- Keep `trapezia_skill_spec` self-contained under its own `src/` subpackage,
+  own tests (`tests/spec/`), own templates — don't reach into validator
+  internals (`patterns.py`, `registry.py`, `tiers.py`, etc.) from generator
+  code.
+- Prefer the spec's public surface (`schema.load_spec`, `SpecError`, and
+  whatever `generate.py` exports) over reaching into private helpers when
+  `spec_lint.py` or future validator code needs generator behavior.
+
 ## Revisit condition
 
 Re-open this decision if a concrete external consumer appears — a team,
