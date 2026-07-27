@@ -71,42 +71,56 @@ anything in this space:
 - **`holographic` is genuinely zero-egress** (no network calls, no API key, MIT) but is
   single-process by construction — its own concurrency guard is process-local.
 
-## ⚠️ Two carry-forward items that do NOT close with this decision
+## Carry-forward items (adjudicated by Chris, 2026-07-27)
 
-These were discovered during Phase 6 but are independent of it. **Cancelling
-memory-sync does not resolve either.**
+Two findings surfaced during Phase 6 that are independent of the memory-sync decision.
+Chris ruled on both after review; the rulings are recorded here **in place of** this
+note's original, more alarmed framing.
 
-### 1. The wiki's sensitive-domain boundary is convention, not construction
+### 1. `advena-wiki` "by construction" wording — documentation accuracy only, NOT a risk
 
-`advena-wiki`'s SKILL.md states the clone is *"financial- and medical-free by
-construction (gitignored at the AdvenaUAT source, never pushed)"*. **This is not
-accurate.** The bare repo at `/opt/trapezia/git/trapezia-wiki-vault.git/hooks/`
-contains only `*.sample` files — no active `pre-receive` or `update` hook. Exclusion
-is entirely client-side `.gitignore`. A `git add -f users/chris/wiki/medical/x.md`
-would commit and push cleanly and propagate to every `env/*` clone, including
-sensitive-tier ones.
+**Original finding:** `advena-wiki`'s SKILL.md states the clone is *"financial- and
+medical-free by construction (gitignored at the AdvenaUAT source, never pushed)"*. That
+wording is inaccurate — the bare repo at
+`/opt/trapezia/git/trapezia-wiki-vault.git/hooks/` contains only `*.sample` files, with
+no active `pre-receive`/`update` hook, so exclusion is entirely client-side
+`.gitignore`. A `git add -f` would commit and push cleanly.
 
-Nothing has leaked — `git log --all --diff-filter=A` shows no such path was ever
-added, so the gap is **latent, not realised**. But the Trapezia sensitive-data
-boundary policy leans on a guarantee that has no mechanical backing.
+**Chris's ruling (authoritative):** *"advena-wiki is my personal environment. There is
+no legal or regulatory danger to storing PII/PHI here on my VPS to which only I have
+access."*
 
-A remediation task was spun out separately (server-side `pre-receive` path block +
-correcting the skill's wording).
+**Corrected severity: none.** This note originally framed the gap as a security/
+compliance exposure and proposed a server-side `pre-receive` remediation. That framing
+was wrong — it assumed a legal/regulatory boundary that does not exist for a personal
+environment on a single-tenant VPS with sole access. **No remediation is required**, and
+the previously-spun-out remediation task is withdrawn.
 
-### 2. `~/.claude/CLAUDE.md` is not safe to copy into a lab-tier artifact
+What remains is a small documentation-accuracy point: the phrase "by construction"
+overstates a client-side convention. The client-side `.gitignore` still functions as
+designed (it keeps medical/financial out of the laptop Claude Code clone, which is the
+actual intent). Fixing the wording is optional cleanup, not a security fix.
 
-A rejected design proposed copying environment facts from `~/.claude/CLAUDE.md` into a
-lab-deployed skill. That file contains the full environment table **including
-advenauat / ariauat / salus-family**, salus per-env data-root paths, per-env credential
-file locations, the auth/MCP port map, and a **real Discord-ID → user-UUID mapping for
-a clinical user**.
+### 2. Only a **scrubbed** `~/.claude/CLAUDE.md` may be copied into a lab-deployed artifact
+
+**Finding:** a rejected design proposed copying environment facts from
+`~/.claude/CLAUDE.md` wholesale into a lab-deployed skill. That file contains the full
+environment table including advenauat / ariauat / salus-family, salus per-env data-root
+paths, per-env credential file locations, the auth/MCP port map, and a real
+Discord-ID → user-UUID mapping.
 
 The design waved this off citing the `sensitive-data-guard` PreToolUse hook. That hook
 was read directly: it matches credential/secret *shape* patterns plus an **optional**
 PHI wordlist that is inert unless `$TRAPEZIA_PHI_WORDLIST` points at an existing file.
-**It would not catch environment topology or user identifiers.**
+It would not catch environment topology or user identifiers.
 
-Worth remembering before any future "just share the env facts across harnesses" idea.
+**Chris's ruling (standing rule going forward):**
+
+> **Only a scrubbed `~/.claude/CLAUDE.md` may be copied into a lab-deployed artifact.**
+
+Wholesale copying is not permitted. Any future "share the env facts across harnesses"
+idea must scrub first — and because `sensitive-data-guard` does not catch this class,
+the scrub cannot rely on that hook to catch a mistake.
 
 ## What this does not change
 
