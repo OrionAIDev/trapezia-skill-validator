@@ -2,10 +2,40 @@
 
 from __future__ import annotations
 
+import textwrap
+from pathlib import Path
+
 from trapezia_skill_spec.generate import generate
 from trapezia_skill_spec.schema import load_spec
 
 SPEC = "specs/trapezia-commercial-policy-check.yaml"
+
+TYPE_A_SPEC = textwrap.dedent(
+    """
+    name: connect-example
+    spec_version: 0
+    version: 1.0.0
+    description: Link an example account.
+    invokes: []
+    guardrails:
+      - id: always-live
+        text: Always call the status check live.
+    body: |
+      ### Step 1 -- Check status
+
+      ```python
+      print("hello")
+      ```
+    harnesses:
+      hermes: {category: connectors}
+    """
+)
+
+
+def _load_type_a(tmp_path: Path):
+    p = tmp_path / "spec.yaml"
+    p.write_text(TYPE_A_SPEC, encoding="utf-8")
+    return load_spec(p)
 
 
 def test_hermes_frontmatter_required_fields() -> None:
@@ -40,3 +70,13 @@ def test_hermes_omits_model_tier() -> None:
 def test_hermes_carries_guardrails_verbatim() -> None:
     out = generate(load_spec(SPEC), "hermes")
     assert "surface the error verbatim" in out
+
+
+def test_hermes_type_a_renders_body_verbatim(tmp_path: Path) -> None:
+    """A type-A skill's ``body`` renders un-collapsed (unlike ``usage``)."""
+    out = generate(_load_type_a(tmp_path), "hermes")
+    assert "### Step 1 -- Check status" in out
+    assert '```python\nprint("hello")\n```' in out
+    # No mcp/cli invoke -> no auto-generated wraps/run-script sections.
+    assert "This skill wraps" not in out
+    assert "Run the bundled script(s)" not in out
