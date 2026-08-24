@@ -6,3 +6,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+
+# superhuman fleet observation (Phase 1.1) writes session-manifest metadata
+# here, including absolute local paths — never intended for commit.
+docs/superhuman/*/fleet/
