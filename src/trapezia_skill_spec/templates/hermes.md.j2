@@ -29,6 +29,10 @@ Trigger phrases: {{ triggers | join(", ") }}.
 
 {{ usage }}
 {% endif %}
+{% if body %}
+
+{{ body }}
+{% endif %}
 {% if mcp_servers %}
 
 This skill wraps {{ mcp_servers | length }} MCP server(s):
@@ -61,4 +65,9 @@ Confirm the MCP server responds (e.g. its `health`/status tool) before relying o
 {% if cli_cmds %}
 
 Run the script against a known input and confirm it exits 0 with the expected output.
+{% endif %}
+{% if body and not mcp_servers and not cli_cmds %}
+
+Follow the Procedure above — its live status check *is* the verification step; never infer
+connection state from memory or conversation history.
 {% endif %}

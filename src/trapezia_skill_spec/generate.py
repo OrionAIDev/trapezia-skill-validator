@@ -62,7 +62,9 @@ def build_context(spec: CanonicalSpec, harness: str) -> dict[str, Any]:
 
     Returns:
         A dict with ``mcp_servers`` (structured list), ``cli_cmds`` (exec
-        strings with ``{skill_root}`` resolved), and the shared metadata fields.
+        strings with ``{skill_root}`` resolved), ``body`` (verbatim multi-line
+        procedure text for type-A skills, unlike the one-line ``usage`` note),
+        and the shared metadata fields.
     """
     root = skill_root(harness, spec)
     required_env: list[str] = []
@@ -93,6 +95,7 @@ def build_context(spec: CanonicalSpec, harness: str) -> dict[str, Any]:
         "cli_cmds": cli_cmds,
         "required_env": required_env,
         "usage": _oneline(spec.usage) if spec.usage else None,
+        "body": spec.body,
         "guardrails": [{"id": g.id, "text": _oneline(g.text)} for g in spec.guardrails],
         "model_tier": spec.model_tier,
     }
