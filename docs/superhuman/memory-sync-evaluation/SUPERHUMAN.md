@@ -1,6 +1,7 @@
 # Superhuman: memory-sync evaluation and decision (HermesLab POC Phase 6)
 
 **Slug:** memory-sync-evaluation
+**Project-id:** 9632245313064fe3
 **Started:** 2026-07-25
 **Superhuman-version:** 1.0.1
 **Vision (one-liner):** Decide whether Trapezia should build a deterministic OpenClaw→Hermes memory-sync tool, adopt Hermes' in-box Honcho memory plugin, or do neither — and produce a decision Chris can sign off on.
