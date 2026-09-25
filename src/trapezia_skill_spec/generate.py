@@ -133,21 +133,33 @@ def _registration_block(inv: Invocation, spec: CanonicalSpec) -> dict[str, Any]:
 def generate_mcp_registration(spec: CanonicalSpec) -> str | None:
     """Render the Hermes `mcp_servers` registration snippet for ``spec``.
 
-    Emits one stdio ``mcp_servers.<server>`` block per mcp invoke (command/args
-    from ``launch``, env from ``required_env`` as ``${VAR}`` references, cwd at
-    the Hermes skill root). The block is a merge fragment the operator applies to
-    ``config.yaml`` (Chris's decision: committed snippet, manual merge).
+    Emits one stdio ``mcp_servers.<server>`` block per **stdio** mcp invoke
+    (command/args from ``launch``, env from ``required_env`` as ``${VAR}``
+    references, cwd at the Hermes skill root). The block is a merge fragment
+    the operator applies to ``config.yaml`` (Chris's decision: committed
+    snippet, manual merge).
+
+    A ``transport: http`` invoke is deliberately skipped here: this repo's
+    registration snippet only knows the stdio `command`/`args`/`cwd` shape,
+    and a streamable-HTTP MCP server is registered against a deployment-
+    specific URL that this canonical spec has no field for (it is Hermes'
+    own per-environment server registration, analogous to how ``launch``
+    only makes sense for a process the gateway spawns itself). Emitting a
+    fabricated ``command: python`` block for an http server would be
+    actively misleading rather than merely incomplete, so it is omitted
+    rather than guessed at.
 
     Args:
         spec: the canonical spec.
 
     Returns:
-        The YAML snippet, or ``None`` if the spec declares no mcp invoke.
+        The YAML snippet, or ``None`` if the spec declares no *stdio* mcp
+        invoke (a spec with only http mcp invokes returns ``None`` too).
     """
     servers = {
         inv.server: _registration_block(inv, spec)
         for inv in spec.invokes
-        if inv.kind == "mcp"
+        if inv.kind == "mcp" and inv.transport == "stdio"
     }
     if not servers:
         return None

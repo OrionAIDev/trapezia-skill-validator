@@ -11,81 +11,52 @@ Use when the user says: disconnect google, unlink google, remove google.
 
 ## Procedure
 
-### Step 0 -- Resolve your instance name
+### Step 1 -- Check status, live
 
-On OpenClaw, read the instance marker:
-```python
-import os
-try:
-    print(open("/opt/openclaw-workspace/.instance").read().strip())
-except FileNotFoundError:
-    print(os.environ.get("INSTANCE_NAME", "oriondev"))
-```
-On Hermes (HermesLab), always use `orionlab` -- HermesLab reuses OrionLab's connected
-identity via the shared trapezia-auth-server (roadmap #128 Phase 3 step 1); it has no
-dedicated instance/OAuth identity of its own.
+Call `google_status` now. Leave `principal`/`user_id` empty -- the gateway fills the
+principal; you never supply an identity.
 
-Store the resolved value as `INSTANCE_NAME` and use it as `env=` in every URL below.
+- `{"connected": false}` -- go to Step 2a
+- `{"connected": true, ...}` -- go to Step 2b
 
-### Step 1 -- Get the user's platform ID
-
-From inbound message metadata (e.g. `sender_id` on Discord).
-
-### Step 2 -- Call the status API RIGHT NOW
-
-Your harness's tool-calling surface for "make an HTTP GET and read the JSON body" varies
-(OpenClaw: `web_fetch`; Hermes: no dedicated fetch tool -- run this via your code-execution
-tool instead, e.g.:
-```python
-import json, urllib.request
-with urllib.request.urlopen("<url>", timeout=10) as r:
-    print(json.load(r))
-```
-). Whichever mechanism your harness uses, call it now -- do not skip this call and do not
-infer connection status from conversation history or memory. The live API response is the
-only source of truth.
-
-```
-GET https://auth.trapezia.ai/google/status?platform=discord&user_id=<sender_id>&env=<INSTANCE_NAME>
-```
-
-Parse the raw JSON response:
-- `{"connected": true, "service_name": "...", "service_email": "...", "connected_at": "..."}` -- go to Step 3b
-- `{"connected": false}` -- go to Step 3a
-
-### Step 3a -- If `"connected": false`
+### Step 2a -- Not connected
 
 Reply:
-> Your Google is not connected -- nothing to disconnect.
 
-### Step 3b -- If `"connected": true`
+> Your Google account is not connected -- nothing to disconnect.
 
-Warn first -- this is a **tier-wide disconnect**, and reusing OrionLab's identity means it
-applies from HermesLab too:
-> **Heads up -- tier-wide disconnect**
->
-> Credentials are shared across the **dev tier**. Disconnecting will remove your Google
-> access (Gmail, Calendar, and Drive) from **OrionDev, OrionLab, and OrionTest** -- including this
-> HermesLab session, which reuses OrionLab's identity. Disconnect also revokes the token server-side at Google, not just locally.
->
-> Proceeding with disconnect now...
+### Step 2b -- Connected: confirm before disconnecting
 
-Then call:
-```
-GET https://auth.trapezia.ai/google/disconnect?platform=discord&user_id=<sender_id>&env=<INSTANCE_NAME>
-```
+Ask the user to confirm, naming the account from the status response:
 
-The response includes `service_name`, `service_email`, and `affected_environments`. Follow up:
-> **Google disconnected.**
->
-> Removed credentials for {service_name} ({service_email}).
->
-> **Environments affected:** {affected_environments (join with ", ")}
->
-> You can reconnect anytime with `/connect-google`.
+> Disconnect your Google account ({service_email})? This removes the stored credentials and
+> revokes access at Google, not just locally -- you'll need to reconnect to use Gmail,
+> Calendar, or Drive again in this chat.
+
+Only proceed to Step 3 once the user confirms. If they decline, stop here.
+
+### Step 3 -- Disconnect
+
+Call `google_disconnect`. Leave `principal`/`user_id` empty.
+
+- `{"ok": true, "was_connected": true, "service_name": ..., "service_email": ...}` -- report
+  success using those fields:
+
+  > **Google disconnected.**
+  >
+  > Removed credentials for {service_name} ({service_email}).
+  >
+  > You can reconnect anytime by asking me to connect Google again in this chat.
+
+- `{"ok": true, "was_connected": false, ...}` -- it was already disconnected by the time the
+  call landed; tell the user there was nothing to remove.
+
+Wraps 1 MCP server(s):
+- `trapezia-google` (transport: http) tools: `google_status`, `google_disconnect`
 
 ## Guardrails
 
-- Always call the status check in Step 2 right now. Do not skip it or infer connection status from context.
-- Parse the raw JSON response before deciding which branch to follow.
-- Warn the user about the tier-wide impact (see Step 3b) before calling the disconnect API.
+- Always call google_status right now. Do not skip it or infer connection status from conversation history or memory -- the live tool response is the only source of truth.
+- Never supply a platform ID, sender ID, or any identity value as a tool argument. Leave `principal` and `user_id` empty (or omit them) on every call -- the gateway stamps a signed sender principal on the call before it reaches the server. Do not ask the user for their platform ID, and do not read one from message metadata.
+- Disconnecting is destructive -- it removes stored credentials and revokes the token server-side at Google, not just locally. Confirm with the user before calling google_disconnect; do not disconnect on an ambiguous or implied request.
+- If a tool call returns an MCP error, relay the error message verbatim to the user and suggest trying again. Never improvise a status or guess at what went wrong.
