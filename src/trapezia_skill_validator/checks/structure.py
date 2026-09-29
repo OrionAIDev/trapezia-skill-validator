@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -221,10 +223,14 @@ def mypy_strict(ctx: AuditContext) -> CheckResult:
         return _result("mypy.strict", Status.PASS, Severity.HIGH, "no scripts/ dir", 1)
     if not any(scripts_dir.rglob("*.py")) and not any(scripts_dir.rglob("*.pyi")):
         return _result("mypy.strict", Status.PASS, Severity.HIGH, "no Python files in scripts/", 1)
+    # The validator's own interpreter, not whichever `python` is first on PATH,
+    # and absence detected up front rather than by matching its error text.
+    if importlib.util.find_spec("mypy") is None:
+        return _result("mypy.strict", Status.WARN, Severity.LOW, "mypy not installed; skipped", 1)
     with tempfile.TemporaryDirectory() as cache_dir:
         proc = subprocess.run(
             [
-                "python",
+                sys.executable,
                 "-m",
                 "mypy",
                 "--strict",
