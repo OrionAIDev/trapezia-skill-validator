@@ -7,6 +7,9 @@ All notable changes documented here. Format per [Keep a Changelog](https://keepa
 ### Added
 - `trapezia_skill_spec`: type-A canonical specs (`invokes: []`, SKILL.md-only) — previously specified in the Phase 1 design doc but rejected by the loader. `schema.py` now allows an empty `invokes` list; a new `body` field carries the verbatim (non-collapsed) multi-line procedure text a type-A skill needs, rendered into the `## Procedure` section by all three harness templates. A skill with empty `invokes` must supply `body`. Exercised by six new real-production specs (`connect-google`, `connect-outlook`, `connect-onedrive`, `disconnect-google`, `disconnect-outlook`, `disconnect-onedrive` — roadmap #128 Phase 3 step 2), ported from the deployed OpenClaw skill repos without modifying them.
 
+### Fixed
+- `mypy.strict` runs mypy under `sys.executable` (the validator's own interpreter) instead of whichever `python` is first on `PATH`, and detects a missing mypy with `importlib.util.find_spec("mypy")` before running anything (still WARN "mypy not installed; skipped"). Closes #3.
+
 ## [0.1.3] - 2026-07-24
 
 ### Added

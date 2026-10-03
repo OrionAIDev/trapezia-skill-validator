@@ -110,6 +110,47 @@ def test_mypy_strict_passes_on_scripts_dir_with_no_python(make_skill) -> None:
     assert _run("mypy.strict", root).status is Status.PASS
 
 
+def test_mypy_strict_runs_under_sys_executable(make_skill, monkeypatch) -> None:
+    """mypy runs under the validator's own interpreter, not PATH's `python`."""
+    import subprocess
+    import sys
+
+    from trapezia_skill_validator.checks import structure as mod
+
+    calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(mod.importlib.util, "find_spec", lambda name: object())
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    root = make_skill("typed_exe", {"scripts/main.py": "x: int = 1\n"})
+
+    assert _run("mypy.strict", root).status is Status.PASS
+    assert len(calls) == 1
+    assert calls[0][0] == sys.executable
+    assert calls[0][1:3] == ["-m", "mypy"]
+
+
+def test_mypy_strict_missing_mypy_warns_without_subprocess_sys_executable(
+    make_skill, monkeypatch
+) -> None:
+    """Absence is detected with find_spec up front, never by running anything."""
+    from trapezia_skill_validator.checks import structure as mod
+
+    def fail_run(*args, **kwargs):
+        raise AssertionError("subprocess.run must not be called when mypy is absent")
+
+    monkeypatch.setattr(mod.importlib.util, "find_spec", lambda name: None)
+    monkeypatch.setattr(mod.subprocess, "run", fail_run)
+    root = make_skill("nomypy", {"scripts/main.py": "x: int = 1\n"})
+
+    result = _run("mypy.strict", root)
+    assert result.status is Status.WARN
+    assert "mypy not installed" in result.message
+
+
 def test_docstrings_ignores_venv_and_vendored(make_skill) -> None:
     """docstrings.present must not walk into .venv/site-packages."""
     root = make_skill(
