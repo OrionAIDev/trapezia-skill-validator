@@ -27,6 +27,25 @@ CLI_ONLY = textwrap.dedent(
     """
 )
 
+HTTP_MCP_ONLY = textwrap.dedent(
+    """
+    name: connect-example
+    spec_version: 0
+    version: 1.0.0
+    description: Link an example account.
+    invokes:
+      - kind: mcp
+        server: trapezia-example
+        transport: http
+        tools: [example_status, example_connect]
+    guardrails:
+      - id: always-live
+        text: Always call the status check live.
+    harnesses:
+      hermes: {category: connectors}
+    """
+)
+
 
 def test_registration_for_policy_check() -> None:
     snippet = generate_mcp_registration(load_spec(POLICY_CHECK))
@@ -51,3 +70,17 @@ def test_registration_has_operator_guidance() -> None:
     # A leading comment tells the operator this is a merge fragment.
     assert snippet.lstrip().startswith("#")
     assert "mcp_servers" in snippet
+
+
+def test_registration_is_none_for_http_only(tmp_path: Path) -> None:
+    """An http-transport mcp invoke has no stdio command/args shape to emit.
+
+    The registration snippet only knows how to describe a process the
+    gateway spawns itself (stdio). A streamable-HTTP server is registered
+    against a deployment-specific URL that lives in Hermes' own per-env
+    config, not in this canonical spec -- so rather than fabricate a
+    ``command: python`` block, the generator emits nothing for it.
+    """
+    p = tmp_path / "spec.yaml"
+    p.write_text(HTTP_MCP_ONLY, encoding="utf-8")
+    assert generate_mcp_registration(load_spec(p)) is None

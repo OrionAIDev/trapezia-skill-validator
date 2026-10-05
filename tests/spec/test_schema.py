@@ -171,3 +171,67 @@ def test_mixed_invokes_type_d_loads(tmp_path: Path) -> None:
     assert [i.kind for i in spec.invokes] == ["mcp", "cli"]
     assert spec.invokes[0].tools == ["health"]
     assert spec.invokes[1].exec == "python {skill_root}/scripts/helper.py"
+
+
+# --- Phase 3: type A (SKILL.md-only, invokes: []) ------------------------------
+
+VALID_TYPE_A = textwrap.dedent(
+    """
+    name: connect-example
+    spec_version: 0
+    version: 1.0.0
+    description: Link an example account. Use when the user wants to connect it.
+    triggers: ["connect example"]
+    invokes: []
+    guardrails:
+      - id: always-live-status
+        text: Always call the status check live; never infer from memory.
+    body: |
+      ### Step 1 -- Check status
+
+      ```python
+      print("hello")
+      ```
+
+      Reply with the result.
+    harnesses:
+      hermes: {category: connectors}
+      openclaw: {}
+    """
+)
+
+
+def test_empty_invokes_type_a_loads(tmp_path: Path) -> None:
+    """A type-A skill (invokes: [], body carries the procedure) is valid."""
+    spec = load_spec(_write(tmp_path, VALID_TYPE_A))
+    assert spec.invokes == []
+    assert spec.body is not None
+    assert "Step 1 -- Check status" in spec.body
+    assert 'print("hello")' in spec.body
+
+
+def test_empty_invokes_without_body_raises(tmp_path: Path) -> None:
+    bad = textwrap.dedent(
+        """
+        name: connect-example
+        spec_version: 0
+        version: 1.0.0
+        description: Link an example account.
+        invokes: []
+        harnesses:
+          hermes: {}
+        """
+    )
+    with pytest.raises(SpecError, match="body"):
+        load_spec(_write(tmp_path, bad))
+
+
+def test_body_absent_is_none(tmp_path: Path) -> None:
+    spec = load_spec(_write(tmp_path, VALID))
+    assert spec.body is None
+
+
+def test_invokes_non_list_raises(tmp_path: Path) -> None:
+    bad = VALID_TYPE_A.replace("invokes: []", "invokes: not-a-list")
+    with pytest.raises(SpecError, match="invokes"):
+        load_spec(_write(tmp_path, bad))

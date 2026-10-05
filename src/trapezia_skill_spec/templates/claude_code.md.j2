@@ -16,6 +16,10 @@ Use when the user says: {{ triggers | join(", ") }}.
 
 {{ usage }}
 {% endif %}
+{% if body %}
+
+{{ body }}
+{% endif %}
 {% if mcp_servers %}
 
 Wraps {{ mcp_servers | length }} MCP server(s):

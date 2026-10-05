@@ -61,6 +61,7 @@ class CanonicalSpec:
     harnesses: dict[str, dict[str, Any]]
     bundle: list[str] = field(default_factory=list)
     usage: str | None = None
+    body: str | None = None
 
 
 def _require(data: dict[str, Any], key: str) -> object:
@@ -98,8 +99,13 @@ def load_spec(path: str | Path) -> CanonicalSpec:
         raise SpecError(f"model_tier must be one of {sorted(MODEL_TIERS)} or omitted: {model_tier!r}")
 
     invokes_raw = _require(raw, "invokes")
-    if not isinstance(invokes_raw, list) or not invokes_raw:
-        raise SpecError("invokes must be a non-empty list")
+    if not isinstance(invokes_raw, list):
+        raise SpecError("invokes must be a list")
+    # invokes: [] is valid — type A (SKILL.md-only, e.g. a skill that only calls a harness-native
+    # tool like web_fetch, with no capability-core MCP/CLI port). See "Phase 0 carry-forward" §1 in
+    # docs/superhuman/plans/2026-07-17-canonical-spec-generator-phase1.md. A type-A skill's content
+    # has nowhere else to go but `body` (verbatim, unlike the one-line `usage` note), so it's
+    # required when invokes is empty — checked once both are loaded, below.
     invokes: list[Invocation] = []
     for i, inv in enumerate(invokes_raw):
         kind = str(_require(inv, "kind"))
@@ -156,6 +162,11 @@ def load_spec(path: str | Path) -> CanonicalSpec:
         seen_ids.add(gid)
         guardrails.append(Guardrail(id=gid, text=str(_require(g, "text"))))
 
+    body_raw = raw.get("body")
+    body = str(body_raw).strip() if body_raw not in (None, "") else None
+    if not invokes and not body:
+        raise SpecError("a type-A skill (invokes: []) must provide a non-empty 'body'")
+
     return CanonicalSpec(
         name=name,
         spec_version=spec_version,
@@ -166,6 +177,7 @@ def load_spec(path: str | Path) -> CanonicalSpec:
         guardrails=guardrails,
         model_tier=model_tier,
         harnesses=dict(raw.get("harnesses", {})),
+        body=body,
         bundle=bundle,
         usage=raw.get("usage"),
     )
